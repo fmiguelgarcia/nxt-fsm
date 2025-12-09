@@ -18,7 +18,7 @@ struct Transition<'a> {
     input_value: &'a parser::InputVariant,
     guard: &'a Option<parser::Guard>,
     final_state: &'a Ident,
-    output: &'a Option<Ident>,
+    output: &'a Option<parser::OutputSpec>,
 }
 
 fn attrs_to_token_stream(attrs: Vec<Attribute>) -> proc_macro2::TokenStream {
@@ -144,26 +144,77 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
             });
         }
 
-        if let Some(output_value) = output {
-            if let Some(guard_clause) = &guard_expr {
-                output_cases.push(quote! {
-                    (Self::State::#initial_state, #input_pattern) #guard_clause => {
-                      #[cfg(feature = "diagram")]
-                      mermaid_diagram.push_str(&format!(" {guard_clause}"));
+        if let Some(output_spec) = output {
+            match output_spec {
+                parser::OutputSpec::Constant(output_value) => {
+                    if let Some(guard_clause) = &guard_expr {
+                        output_cases.push(quote! {
+                            (Self::State::#initial_state, #input_pattern) #guard_clause => {
+                                Some(Self::Output::#output_value)
+                            }
+                        });
+                    } else {
+                        output_cases.push(quote! {
+                            (Self::State::#initial_state, #input_pattern) => {
+                                Some(Self::Output::#output_value)
+                            }
+                        });
+                    }
 
-                        Some(Self::Output::#output_value)
+                    #[cfg(feature = "diagram")]
+                    mermaid_diagram.push_str(&format!(" [{output_value}]"));
+                }
+                parser::OutputSpec::Call(call_expr) => {
+                    // Generate code to call the closure with input tuple fields
+                    if let Some(ref fields) = input_value.fields {
+                        // Generate parameter names: __arg0, __arg1, etc.
+                        let param_names: Vec<_> = (0..fields.len())
+                            .map(|i| {
+                                syn::Ident::new(
+                                    &format!("__arg{}", i),
+                                    proc_macro2::Span::call_site(),
+                                )
+                            })
+                            .collect();
+
+                        // Pattern to destructure the input with references
+                        let pattern_for_call =
+                            quote! { Self::Input::#input_name(#(ref #param_names),*) };
+
+                        if let Some(guard_clause) = &guard_expr {
+                            output_cases.push(quote! {
+                                (Self::State::#initial_state, #pattern_for_call) #guard_clause => {
+                                    Some((#call_expr)(#(#param_names),*))
+                                }
+                            });
+                        } else {
+                            output_cases.push(quote! {
+                                (Self::State::#initial_state, #pattern_for_call) => {
+                                    Some((#call_expr)(#(#param_names),*))
+                                }
+                            });
+                        }
+                    } else {
+                        // Unit variant - call closure without arguments
+                        if let Some(guard_clause) = &guard_expr {
+                            output_cases.push(quote! {
+                                (Self::State::#initial_state, #input_pattern) #guard_clause => {
+                                    Some((#call_expr)())
+                                }
+                            });
+                        } else {
+                            output_cases.push(quote! {
+                                (Self::State::#initial_state, #input_pattern) => {
+                                    Some((#call_expr)())
+                                }
+                            });
+                        }
                     }
-                });
-            } else {
-                output_cases.push(quote! {
-                    (Self::State::#initial_state, #input_pattern) => {
-                        Some(Self::Output::#output_value)
-                    }
-                });
+
+                    #[cfg(feature = "diagram")]
+                    mermaid_diagram.push_str(" [call]");
+                }
             }
-
-            #[cfg(feature = "diagram")]
-            mermaid_diagram.push_str(&format!(" [{output_value}]"));
         }
 
         #[cfg(feature = "diagram")]
@@ -177,8 +228,9 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
             .entry(input_name)
             .or_insert(input_value.fields.as_ref());
 
-        if let Some(ref output) = output {
-            outputs.insert(output);
+        // Only collect constant outputs for the Output enum
+        if let Some(parser::OutputSpec::Constant(ref output_ident)) = output {
+            outputs.insert(output_ident);
         }
     }
 
@@ -255,10 +307,15 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
     #[cfg(not(feature = "diagram"))]
     let diagram = quote!();
 
+    // Collect use statements
+    let use_statements = &input.use_statements;
+
     let output = quote! {
         #doc
         #diagram
         #visibility mod #fsm_name {
+            #(#use_statements)*
+
             #attrs
             pub struct Impl;
 

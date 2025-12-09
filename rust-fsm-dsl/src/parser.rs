@@ -3,25 +3,42 @@ use syn::{
     parse::{Error, Parse, ParseStream, Result},
     punctuated::Punctuated,
     token::{Bracket, Paren},
-    Attribute, Expr, Ident, Path, Token, Type, Visibility,
+    Attribute, Expr, Ident, ItemUse, Path, Token, Type, Visibility,
 };
 
 /// The output of a state transition
-pub struct Output(Option<Ident>);
+pub enum OutputSpec {
+    /// A constant output variant (e.g., [SetupTimer])
+    Constant(Ident),
+    /// A function call output (e.g., [|x| compute(x)])
+    Call(Expr),
+}
+
+pub struct Output(Option<OutputSpec>);
 
 impl Parse for Output {
     fn parse(input: ParseStream) -> Result<Self> {
         if input.lookahead1().peek(Bracket) {
             let output_content;
             bracketed!(output_content in input);
-            Ok(Self(Some(output_content.parse()?)))
+
+            // Check if it starts with a closure (|)
+            if output_content.peek(Token![|]) {
+                // Parse as closure expression
+                let expr: Expr = output_content.parse()?;
+                return Ok(Self(Some(OutputSpec::Call(expr))));
+            }
+
+            // Parse as constant identifier
+            let ident: Ident = output_content.parse()?;
+            Ok(Self(Some(OutputSpec::Constant(ident))))
         } else {
             Ok(Self(None))
         }
     }
 }
 
-impl From<Output> for Option<Ident> {
+impl From<Output> for Option<OutputSpec> {
     fn from(output: Output) -> Self {
         output.0
     }
@@ -60,7 +77,7 @@ pub struct TransitionEntry {
     pub input_value: InputVariant,
     pub guard: Option<Guard>,
     pub final_state: Ident,
-    pub output: Option<Ident>,
+    pub output: Option<OutputSpec>,
 }
 
 impl Parse for TransitionEntry {
@@ -164,6 +181,7 @@ pub struct StateMachineDef {
     pub visibility: Visibility,
     pub name: Ident,
     pub initial_state: Ident,
+    pub use_statements: Vec<ItemUse>,
     pub transitions: Vec<TransitionDef>,
     pub attributes: Vec<Attribute>,
     pub input_type: Option<Path>,
@@ -219,6 +237,12 @@ impl Parse for StateMachineDef {
         parenthesized!(initial_state_content in input);
         let initial_state = initial_state_content.parse()?;
 
+        // Parse optional use statements
+        let mut use_statements = Vec::new();
+        while input.peek(Token![use]) {
+            use_statements.push(input.parse()?);
+        }
+
         let transitions = input
             .parse_terminated(TransitionDef::parse, Token![,])?
             .into_iter()
@@ -229,6 +253,7 @@ impl Parse for StateMachineDef {
             visibility,
             name,
             initial_state,
+            use_statements,
             transitions,
             attributes,
             input_type,
