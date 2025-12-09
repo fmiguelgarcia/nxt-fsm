@@ -3,7 +3,7 @@ use syn::{
     parse::{Error, Parse, ParseStream, Result},
     punctuated::Punctuated,
     token::{Bracket, Paren},
-    Attribute, Ident, Path, Token, Type, Visibility,
+    Attribute, Expr, Ident, Path, Token, Type, Visibility,
 };
 
 /// The output of a state transition
@@ -49,10 +49,16 @@ impl Parse for InputVariant {
     }
 }
 
+/// Represents a guard expression for a transition
+pub struct Guard {
+    pub expr: Expr,
+}
+
 /// Represents a part of state transition without the initial state. The `Parse`
 /// trait is implemented for the compact form.
 pub struct TransitionEntry {
     pub input_value: InputVariant,
+    pub guard: Option<Guard>,
     pub final_state: Ident,
     pub output: Option<Ident>,
 }
@@ -60,11 +66,23 @@ pub struct TransitionEntry {
 impl Parse for TransitionEntry {
     fn parse(input: ParseStream) -> Result<Self> {
         let input_value = InputVariant::parse(input)?;
+
+        // Check for optional guard: if <expr>
+        let guard = if input.peek(Token![if]) {
+            input.parse::<Token![if]>()?;
+            Some(Guard {
+                expr: input.parse()?,
+            })
+        } else {
+            None
+        };
+
         input.parse::<Token![=>]>()?;
         let final_state = input.parse()?;
         let output = input.parse::<Output>()?.into();
         Ok(Self {
             input_value,
+            guard,
             final_state,
             output,
         })
@@ -82,6 +100,7 @@ impl Parse for TransitionDef {
         let initial_state = input.parse()?;
         // Parse the transition in the simple format
         // InitialState(Input) => ResultState [Output]
+        // Note: Guards are not supported in simple format (only in compact format)
         let transitions = if input.lookahead1().peek(Paren) {
             let input_content;
             parenthesized!(input_content in input);
@@ -92,6 +111,7 @@ impl Parse for TransitionDef {
 
             vec![TransitionEntry {
                 input_value,
+                guard: None,
                 final_state,
                 output,
             }]

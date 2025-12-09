@@ -7,7 +7,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use std::{collections::BTreeMap, collections::BTreeSet, iter::FromIterator};
-use syn::{parse_macro_input, punctuated::Punctuated, Attribute, Ident, Type};
+use syn::{parse_macro_input, punctuated::Punctuated, token::Comma, Attribute, Ident, Type};
 
 mod parser;
 
@@ -16,6 +16,7 @@ mod parser;
 struct Transition<'a> {
     initial_state: &'a Ident,
     input_value: &'a parser::InputVariant,
+    guard: &'a Option<parser::Guard>,
     final_state: &'a Ident,
     output: &'a Option<Ident>,
 }
@@ -48,13 +49,14 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
         def.transitions.iter().map(move |transition| Transition {
             initial_state: &def.initial_state,
             input_value: &transition.input_value,
+            guard: &transition.guard,
             final_state: &transition.final_state,
             output: &transition.output,
         })
     });
 
     let mut states = BTreeSet::new();
-    let mut inputs: BTreeMap<&Ident, Option<&Punctuated<Type, syn::Token![,]>>> = BTreeMap::new();
+    let mut inputs: BTreeMap<&Ident, Option<&Punctuated<Type, Comma>>> = BTreeMap::new();
     let mut outputs = BTreeSet::new();
     let mut transition_cases = Vec::new();
     let mut output_cases = Vec::new();
@@ -75,6 +77,7 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
             initial_state,
             final_state,
             input_value,
+            guard,
             output,
         } = transition;
 
@@ -88,27 +91,76 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
         // Generate match cases
         // For generated input types, we know exactly which pattern to use based on the DSL
         // For custom input types, we only support unit variants (without tuple fields)
-        let input_pattern = if using_custom_input || input_value.fields.is_none() {
-            // For custom types, only support unit variant patterns
-            // Tuple variants are not supported with custom input types
-            quote! { Self::Input::#input_name }
+
+        // When there's a guard with tuple variant, we need to bind the fields
+        let (input_pattern, guard_expr) = if let Some(guard) = guard {
+            if let Some(ref fields) = input_value.fields {
+                // Generate parameter names: __arg0, __arg1, etc.
+                let param_names: Vec<_> = (0..fields.len())
+                    .map(|i| {
+                        syn::Ident::new(&format!("__arg{}", i), proc_macro2::Span::call_site())
+                    })
+                    .collect();
+
+                let guard_expr = &guard.expr;
+
+                // Pattern with named parameters
+                let pattern = quote! { Self::Input::#input_name(#(ref #param_names),*) };
+
+                // Call the closure with the bound parameters
+                let guard_call = quote! { if (#guard_expr)(#(#param_names),*) };
+                (pattern, Some(guard_call))
+            } else {
+                // Unit variant with guard (guard applies to the state/input combination)
+                let guard_expr = &guard.expr;
+                (
+                    quote! { Self::Input::#input_name },
+                    Some(quote! { if #guard_expr }),
+                )
+            }
         } else {
-            // For generated tuple variants, use the (..) pattern
-            quote! { Self::Input::#input_name(..) }
+            // No guard
+            let pattern = if using_custom_input || input_value.fields.is_none() {
+                // For custom types or unit variants
+                quote! { Self::Input::#input_name }
+            } else {
+                // For generated tuple variants without guard, use (..) pattern
+                quote! { Self::Input::#input_name(..) }
+            };
+            (pattern, None)
         };
 
-        transition_cases.push(quote! {
-            (Self::State::#initial_state, #input_pattern) => {
-                Some(Self::State::#final_state)
-            }
-        });
-
-        if let Some(output_value) = output {
-            output_cases.push(quote! {
-                (Self::State::#initial_state, #input_pattern) => {
-                    Some(Self::Output::#output_value)
+        if let Some(guard_clause) = &guard_expr {
+            transition_cases.push(quote! {
+                (Self::State::#initial_state, #input_pattern) #guard_clause => {
+                    Some(Self::State::#final_state)
                 }
             });
+        } else {
+            transition_cases.push(quote! {
+                (Self::State::#initial_state, #input_pattern) => {
+                    Some(Self::State::#final_state)
+                }
+            });
+        }
+
+        if let Some(output_value) = output {
+            if let Some(guard_clause) = &guard_expr {
+                output_cases.push(quote! {
+                    (Self::State::#initial_state, #input_pattern) #guard_clause => {
+                      #[cfg(feature = "diagram")]
+                      mermaid_diagram.push_str(&format!(" {guard_clause}"));
+
+                        Some(Self::Output::#output_value)
+                    }
+                });
+            } else {
+                output_cases.push(quote! {
+                    (Self::State::#initial_state, #input_pattern) => {
+                        Some(Self::Output::#output_value)
+                    }
+                });
+            }
 
             #[cfg(feature = "diagram")]
             mermaid_diagram.push_str(&format!(" [{output_value}]"));
@@ -140,9 +192,9 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
     // Generate input variants with optional tuple fields
     let input_variants = inputs.iter().map(|(name, fields)| {
         if let Some(fields) = fields {
-            quote! { #name(#fields) }
+            quote! { #[allow(unused)] #name(#fields) }
         } else {
-            quote! { #name }
+            quote! { #[allow(unused)] #name }
         }
     });
 
