@@ -54,11 +54,11 @@ state_machine! {
     #[state_machine(output(StringOutput))]
     string_processor(Ready)
 
-    use crate::StringOutput;
+    use super::StringOutput;
 
     Ready => {
         Process(String) => Ready [|s: &String| StringOutput::Length(s.len())],
-        Concat(String, String) => Ready [|a: &String, b: &String| StringOutput::Combined(format!("{}{}", a, b))],
+        Concat(String, String) => Ready [ |a: &str, b: &str| StringOutput::Combined(format!("{a}{b}"))],
         Clear => Ready
     }
 }
@@ -97,7 +97,7 @@ state_machine! {
     #[state_machine(output(ValidatorOutput))]
     validator(Waiting)
 
-    use crate::ValidatorOutput;
+    use super::ValidatorOutput;
 
     Waiting => {
         CheckRange(i32, i32, i32) => Waiting [|value: &i32, start: &i32, end: &i32| {

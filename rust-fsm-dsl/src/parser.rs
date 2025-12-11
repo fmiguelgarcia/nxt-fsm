@@ -47,7 +47,7 @@ impl From<Output> for Option<OutputSpec> {
 /// Represents an input variant, which can be a simple identifier or a tuple variant
 pub struct InputVariant {
     pub name: Ident,
-    pub fields: Option<Punctuated<Type, Token![,]>>,
+    pub fields: Punctuated<Type, Token![,]>,
 }
 
 impl Parse for InputVariant {
@@ -57,9 +57,9 @@ impl Parse for InputVariant {
         let fields = if input.lookahead1().peek(Paren) {
             let content;
             parenthesized!(content in input);
-            Some(content.parse_terminated(Type::parse, Token![,])?)
+            content.parse_terminated(Type::parse, Token![,])?
         } else {
-            None
+            Punctuated::new()
         };
 
         Ok(Self { name, fields })

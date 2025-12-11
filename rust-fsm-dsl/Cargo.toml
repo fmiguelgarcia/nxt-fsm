@@ -17,8 +17,10 @@ proc-macro = true
 
 [features]
 diagram = []
+pretty-print = ["prettyplease"]
 
 [dependencies]
 proc-macro2 = "1"
 syn = { version = "2", features = ["full"] }
 quote = "1"
+prettyplease = { version = "0.2", optional = true }

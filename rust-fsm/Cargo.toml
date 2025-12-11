@@ -17,6 +17,7 @@ default = ["std", "dsl"]
 std = []
 dsl = ["rust-fsm-dsl"]
 diagram = ["aquamarine", "rust-fsm-dsl/diagram"]
+pretty-print = ["rust-fsm-dsl/pretty-print"]
 
 [dependencies]
 aquamarine = { version = "0.6", optional = true }
