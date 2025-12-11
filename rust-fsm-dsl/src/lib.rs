@@ -238,6 +238,33 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
     // Collect use statements
     let use_statements = &input.use_statements;
 
+    // Generate before_transition implementation if provided
+    let before_transition_impl = if let Some(ref expr) = input.before_transition {
+        quote! {
+            fn before_transition(state: &Self::State, input: &Self::Input) {
+                (#expr)(state, input)
+            }
+        }
+    } else {
+        quote!()
+    };
+
+    // Generate after_transition implementation if provided
+    let after_transition_impl = if let Some(ref expr) = input.after_transition {
+        quote! {
+            fn after_transition(
+                pre_state: &Self::State,
+                input: &Self::Input,
+                state: &Self::State,
+                output: Option<&Self::Output>,
+            ) {
+                (#expr)(pre_state, input, state, output)
+            }
+        }
+    } else {
+        quote!()
+    };
+
     let output = quote! {
         #doc
         #diagram
@@ -272,6 +299,9 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
                         _ => None,
                     }
                 }
+
+                #before_transition_impl
+                #after_transition_impl
             }
         }
     };

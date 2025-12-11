@@ -262,6 +262,15 @@ pub trait StateMachineImpl {
     /// based on the current state and the given input. Outputs `None` when
     /// there is no output for a given combination of the input and the state.
     fn output(state: &Self::State, input: &Self::Input) -> Option<Self::Output>;
+
+    fn before_transition(_state: &Self::State, _input: &Self::Input) {}
+    fn after_transition(
+        _pre_state: &Self::State,
+        _input: &Self::Input,
+        _state: &Self::State,
+        _output: Option<&Self::Output>,
+    ) {
+    }
 }
 
 /// A convenience wrapper around the `StateMachine` trait that encapsulates the
@@ -271,7 +280,7 @@ pub struct StateMachine<T: StateMachineImpl> {
     state: T::State,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 /// An error type that represents that the state transition is impossible given
 /// the current combination of state and input.
 pub struct TransitionImpossibleError;
@@ -295,17 +304,24 @@ where
     /// Consumes the provided input, gives an output and performs a state
     /// transition. If a state transition with the current state and the
     /// provided input is not allowed, returns an error.
+    ///
     pub fn consume(
         &mut self,
         input: &T::Input,
     ) -> Result<Option<T::Output>, TransitionImpossibleError> {
-        if let Some(state) = T::transition(&self.state, input) {
-            let output = T::output(&self.state, input);
-            self.state = state;
-            Ok(output)
-        } else {
-            Err(TransitionImpossibleError)
-        }
+        let Some(mut state) = T::transition(&self.state, input) else {
+            return Err(TransitionImpossibleError);
+        };
+
+        T::before_transition(&self.state, input);
+
+        let output = T::output(&self.state, input);
+        core::mem::swap(&mut self.state, &mut state);
+
+        // Call after_transition hook
+        T::after_transition(&state, input, &self.state, output.as_ref());
+
+        Ok(output)
     }
 
     /// Returns the current state.

@@ -187,6 +187,8 @@ pub struct StateMachineDef {
     pub input_type: Option<Path>,
     pub state_type: Option<Path>,
     pub output_type: Option<Path>,
+    pub before_transition: Option<Expr>,
+    pub after_transition: Option<Expr>,
 }
 
 impl Parse for StateMachineDef {
@@ -211,19 +213,37 @@ impl Parse for StateMachineDef {
         let mut input_type = None;
         let mut state_type = None;
         let mut output_type = None;
+        let mut before_transition = None;
+        let mut after_transition = None;
 
         for attribute in state_machine_attributes {
             attribute.parse_nested_meta(|meta| {
                 let content;
                 parenthesized!(content in meta.input);
-                let p: Path = content.parse()?;
 
-                if meta.path.is_ident("input") {
-                    input_type = Some(p);
-                } else if meta.path.is_ident("state") {
-                    state_type = Some(p);
-                } else if meta.path.is_ident("output") {
-                    output_type = Some(p);
+                if meta.path.is_ident("input")
+                    || meta.path.is_ident("state")
+                    || meta.path.is_ident("output")
+                {
+                    let p: Path = content.parse()?;
+
+                    if meta.path.is_ident("input") {
+                        input_type = Some(p);
+                    } else if meta.path.is_ident("state") {
+                        state_type = Some(p);
+                    } else if meta.path.is_ident("output") {
+                        output_type = Some(p);
+                    }
+                } else if meta.path.is_ident("before_transition")
+                    || meta.path.is_ident("after_transition")
+                {
+                    let expr: Expr = content.parse()?;
+
+                    if meta.path.is_ident("before_transition") {
+                        before_transition = Some(expr);
+                    } else if meta.path.is_ident("after_transition") {
+                        after_transition = Some(expr);
+                    }
                 }
 
                 Ok(())
@@ -259,6 +279,8 @@ impl Parse for StateMachineDef {
             input_type,
             state_type,
             output_type,
+            before_transition,
+            after_transition,
         })
     }
 }
