@@ -79,29 +79,31 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
                     // Handle guards differently based on their type
                     match &transition.guard {
                         // Match guard with multiple arms - each arm becomes a separate transition
-                        Some(parser::Guard::Binding(binding_guard)) => {
-                            binding_guard
-                                .arms
-                                .iter()
-                                .map(|arm| {
-                                    let guard_expr = binding_guard.guard_expr_for_arm(&transition.input.fields, arm);
-                                    Transition {
-                                        initial_state: &def.initial_state,
-                                        input_value: &transition.input,
-                                        guard_expr: Some(guard_expr),
-                                        final_state: &arm.final_state,
-                                        output: arm.output.as_ref(),
-                                    }
-                                })
-                                .collect::<Vec<_>>()
-                        }
+                        Some(parser::Guard::Binding(binding_guard)) => binding_guard
+                            .arms
+                            .iter()
+                            .map(|arm| {
+                                let guard_expr =
+                                    binding_guard.guard_expr_for_arm(&transition.input.fields, arm);
+                                Transition {
+                                    initial_state: &def.initial_state,
+                                    input_value: &transition.input,
+                                    guard_expr: Some(guard_expr),
+                                    final_state: &arm.final_state,
+                                    output: arm.output.as_ref(),
+                                }
+                            })
+                            .collect::<Vec<_>>(),
                         // If guard with closure - single transition with guard
                         Some(parser::Guard::Closure(closure_expr)) => {
                             vec![Transition {
                                 initial_state: &def.initial_state,
                                 input_value: &transition.input,
                                 guard_expr: Some(closure_expr.clone()),
-                                final_state: transition.final_state.as_ref().expect("if guard must have final_state"),
+                                final_state: transition
+                                    .final_state
+                                    .as_ref()
+                                    .expect("if guard must have final_state"),
                                 output: transition.output.as_ref(),
                             }]
                         }
@@ -110,7 +112,10 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
                             vec![Transition::new(
                                 &def.initial_state,
                                 &transition.input,
-                                transition.final_state.as_ref().expect("simple transition must have final_state"),
+                                transition
+                                    .final_state
+                                    .as_ref()
+                                    .expect("simple transition must have final_state"),
                                 transition.output.as_ref(),
                             )]
                         }
@@ -129,7 +134,7 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
     states.insert(&input.initial_state);
 
     // Check if we're using a custom input type
-    let using_custom_input = input.input_type.is_some();
+    let using_custom_input = input.def_attrs.input_type.is_some();
 
     for transition in &transitions {
         let Transition {
@@ -243,7 +248,7 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
         }
     });
 
-    let (input_type, input_impl) = match input.input_type {
+    let (input_type, input_impl) = match input.def_attrs.input_type {
         Some(t) => (quote!(#t), quote!()),
         None => (
             quote!(Input),
@@ -256,7 +261,7 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
         ),
     };
 
-    let (state_type, state_impl) = match input.state_type {
+    let (state_type, state_impl) = match input.def_attrs.state_type {
         Some(t) => (quote!(#t), quote!()),
         None => (
             quote!(State),
@@ -269,7 +274,7 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
         ),
     };
 
-    let (output_type, output_impl) = match input.output_type {
+    let (output_type, output_impl) = match input.def_attrs.output_type {
         Some(t) => (quote!(#t), quote!()),
         None => {
             // Many attrs and derives may work incorrectly (or simply not work) for empty enums, so we just skip them
@@ -295,7 +300,7 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
     let use_statements = &input.use_statements;
 
     // Generate before_transition implementation if provided
-    let before_transition_impl = if let Some(ref expr) = input.before_transition {
+    let before_transition_impl = if let Some(ref expr) = input.def_attrs.before_transition {
         quote! {
             fn before_transition(state: &Self::State, input: &Self::Input) {
                 (#expr)(state, input)
@@ -306,7 +311,7 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
     };
 
     // Generate after_transition implementation if provided
-    let after_transition_impl = if let Some(ref expr) = input.after_transition {
+    let after_transition_impl = if let Some(ref expr) = input.def_attrs.after_transition {
         quote! {
             fn after_transition(
                 pre_state: &Self::State,

@@ -11,10 +11,70 @@ pub use output::{Output, OutputSpec};
 pub use transition::TransitionDef;
 
 use syn::{
+    meta::ParseNestedMeta,
     parenthesized,
     parse::{Parse, ParseStream, Result},
     Attribute, Expr, Ident, ItemUse, Path, Token, Visibility,
 };
+
+#[derive(Default)]
+pub struct SMDefAttr {
+    pub input_type: Option<Path>,
+    pub state_type: Option<Path>,
+    pub output_type: Option<Path>,
+    pub before_transition: Option<Expr>,
+    pub after_transition: Option<Expr>,
+}
+
+impl SMDefAttr {
+    fn load_nested_attr(&mut self, meta: ParseNestedMeta<'_>) -> syn::Result<()> {
+        let Some(attr_ident) = meta.path.get_ident() else {
+            return Ok(());
+        };
+
+        let content;
+        parenthesized!(content in meta.input);
+
+        let attr_name = attr_ident.to_string();
+        match attr_name.as_str() {
+            "input" => {
+                self.input_type = Some(content.parse::<Path>()?);
+            }
+            "state" => {
+                self.state_type = Some(content.parse::<Path>()?);
+            }
+            "output" => {
+                self.output_type = Some(content.parse::<Path>()?);
+            }
+            "before_transition" => {
+                self.before_transition = Some(content.parse::<Expr>()?);
+            }
+            "after_transition" => {
+                self.after_transition = Some(content.parse::<Expr>()?);
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+}
+
+impl FromIterator<Attribute> for SMDefAttr {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = Attribute>,
+    {
+        let mut this = SMDefAttr::default();
+
+        let _ = iter
+            .into_iter()
+            .map(|attr| attr.parse_nested_meta(|meta| this.load_nested_attr(meta)))
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+
+        this
+    }
+}
 
 /// Parses the whole state machine definition in the following form (example):
 ///
@@ -27,7 +87,7 @@ use syn::{
 ///     HalfOpen => {
 ///         Successful => Closed,
 ///         Unsuccessful => Open [SetupTimer]
-///     }
+///     },
 /// }
 /// ```
 pub struct StateMachineDef {
@@ -39,75 +99,25 @@ pub struct StateMachineDef {
     pub use_statements: Vec<ItemUse>,
     pub transitions: Vec<TransitionDef>,
     pub attributes: Vec<Attribute>,
-    pub input_type: Option<Path>,
-    pub state_type: Option<Path>,
-    pub output_type: Option<Path>,
-    pub before_transition: Option<Expr>,
-    pub after_transition: Option<Expr>,
+    pub def_attrs: SMDefAttr,
 }
 
 impl Parse for StateMachineDef {
     fn parse(input: ParseStream) -> Result<Self> {
-        let mut state_machine_attributes = Vec::new();
-        let mut doc = Vec::new();
-        let attributes = Attribute::parse_outer(input)?
-            .into_iter()
-            .filter_map(|attribute| {
-                if attribute.path().is_ident("state_machine") {
-                    state_machine_attributes.push(attribute);
-                    None
-                } else if attribute.path().is_ident("doc") {
-                    doc.push(attribute);
-                    None
-                } else {
-                    Some(attribute)
-                }
-            })
-            .collect();
-
-        let mut input_type = None;
-        let mut state_type = None;
-        let mut output_type = None;
-        let mut before_transition = None;
-        let mut after_transition = None;
-
-        for attribute in state_machine_attributes {
-            attribute.parse_nested_meta(|meta| {
-                let content;
-                parenthesized!(content in meta.input);
-
-                if meta.path.is_ident("input")
-                    || meta.path.is_ident("state")
-                    || meta.path.is_ident("output")
-                {
-                    let p: Path = content.parse()?;
-
-                    if meta.path.is_ident("input") {
-                        input_type = Some(p);
-                    } else if meta.path.is_ident("state") {
-                        state_type = Some(p);
-                    } else if meta.path.is_ident("output") {
-                        output_type = Some(p);
-                    }
-                } else if meta.path.is_ident("before_transition")
-                    || meta.path.is_ident("after_transition")
-                {
-                    let expr: Expr = content.parse()?;
-
-                    if meta.path.is_ident("before_transition") {
-                        before_transition = Some(expr);
-                    } else if meta.path.is_ident("after_transition") {
-                        after_transition = Some(expr);
-                    }
-                }
-
-                Ok(())
-            })?;
-        }
+        // Parse attributes: doc, state_machine, and others
+        let mut attributes = Attribute::parse_outer(input)?;
+        let doc = attributes
+            .extract_if(.., |attr| attr.path().is_ident("doc"))
+            .collect::<Vec<_>>();
+        let sm_attrs = attributes
+            .extract_if(.., |attr| attr.path().is_ident("state_machine"))
+            .collect::<Vec<_>>();
+        let def_attrs = SMDefAttr::from_iter(sm_attrs);
 
         let visibility = input.parse()?;
         let name = input.parse()?;
 
+        // Parse **initial** state.
         let initial_state_content;
         parenthesized!(initial_state_content in input);
         let initial_state = initial_state_content.parse()?;
@@ -131,11 +141,7 @@ impl Parse for StateMachineDef {
             use_statements,
             transitions,
             attributes,
-            input_type,
-            state_type,
-            output_type,
-            before_transition,
-            after_transition,
+            def_attrs,
         })
     }
 }
