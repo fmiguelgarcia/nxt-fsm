@@ -106,13 +106,18 @@ impl Parse for StateMachineDef {
     fn parse(input: ParseStream) -> Result<Self> {
         // Parse attributes: doc, state_machine, and others
         let mut attributes = Attribute::parse_outer(input)?;
+
+        let is_doc = |attr: &&Attribute| attr.path().is_ident("doc");
+        let is_sm = |attr: &&Attribute| attr.path().is_ident("state_machine");
         let doc = attributes
-            .extract_if(.., |attr| attr.path().is_ident("doc"))
+            .iter()
+            .filter(is_doc)
+            .cloned()
             .collect::<Vec<_>>();
-        let sm_attrs = attributes
-            .extract_if(.., |attr| attr.path().is_ident("state_machine"))
-            .collect::<Vec<_>>();
+        let sm_attrs = attributes.iter().filter(is_sm).cloned().collect::<Vec<_>>();
         let def_attrs = SMDefAttr::from_iter(sm_attrs);
+
+        attributes.retain(|attr| !is_doc(&attr) && !is_sm(&attr));
 
         let visibility = input.parse()?;
         let name = input.parse()?;
