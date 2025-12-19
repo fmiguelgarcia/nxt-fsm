@@ -67,17 +67,17 @@ The DSL is parsed by the `state_machine` macro. Here is a little example.
 use rust_fsm::*;
 
 state_machine! {
-    #[derive(Debug)]
-    #[repr(C)]
-    /// A Circuit Breaker state machine.
-    circuit_breaker(Closed)
+	#[derive(Debug)]
+	#[repr(C)]
+	/// A Circuit Breaker state machine.
+	circuit_breaker(Closed)
 
-    Closed(Unsuccessful) => Open [SetupTimer],
-    Open(TimerTriggered) => HalfOpen,
-    HalfOpen => {
-        Successful => Closed,
-        Unsuccessful => Open [SetupTimer]
-    }
+	Closed(Unsuccessful) => Open [SetupTimer],
+	Open(TimerTriggered) => HalfOpen,
+	HalfOpen => {
+		Successful => Closed,
+		Unsuccessful => Open [SetupTimer]
+	}
 }
 ```
 
@@ -107,11 +107,11 @@ let _ = machine.consume(&circuit_breaker::Input::Successful);
 let output = machine.consume(&circuit_breaker::Input::Unsuccessful).unwrap();
 // Check the output
 if let Some(circuit_breaker::Output::SetupTimer) = output {
-    // Set up the timer...
+	// Set up the timer...
 }
 // Check the state
 if let circuit_breaker::State::Open = machine.state() {
-    // Do something...
+	// Do something...
 }
 ```
 
@@ -140,14 +140,14 @@ You can specify visibility like this:
 use rust_fsm::*;
 
 state_machine! {
-    pub CircuitBreaker(Closed)
+	pub CircuitBreaker(Closed)
 
-    Closed(Unsuccessful) => Open [SetupTimer],
-    Open(TimerTriggered) => HalfOpen,
-    HalfOpen => {
-        Successful => Closed,
-        Unsuccessful => Open [SetupTimer],
-    }
+	Closed(Unsuccessful) => Open [SetupTimer],
+	Open(TimerTriggered) => HalfOpen,
+	HalfOpen => {
+		Successful => Closed,
+		Unsuccessful => Open [SetupTimer],
+	}
 }
 ```
 
@@ -163,31 +163,31 @@ The current limitation is that you have to supply a fully qualified type path.
 use rust_fsm::*;
 
 pub enum Input {
-    Successful,
-    Unsuccessful,
-    TimerTriggered,
+	Successful,
+	Unsuccessful,
+	TimerTriggered,
 }
 
 pub enum State {
-    Closed,
-    HalfOpen,
-    Open,
+	Closed,
+	HalfOpen,
+	Open,
 }
 
 pub enum Output {
-    SetupTimer,
+	SetupTimer,
 }
 
 state_machine! {
-    #[state_machine(input(crate::Input), state(crate::State), output(crate::Output))]
-    circuit_breaker(Closed)
+	#[state_machine(input(crate::Input), state(crate::State), output(crate::Output))]
+	circuit_breaker(Closed)
 
-    Closed(Unsuccessful) => Open [SetupTimer],
-    Open(TimerTriggered) => HalfOpen,
-    HalfOpen => {
-        Successful => Closed,
-        Unsuccessful => Open [SetupTimer]
-    }
+	Closed(Unsuccessful) => Open [SetupTimer],
+	Open(TimerTriggered) => HalfOpen,
+	HalfOpen => {
+		Successful => Closed,
+		Unsuccessful => Open [SetupTimer]
+	}
 }
 ```
 
@@ -273,17 +273,15 @@ pub use aquamarine::aquamarine;
 ///     type Output = ();
 ///     const INITIAL_STATE: Self::State = ParserState::Idle;
 ///
-///     fn transition<'a>(state: &Self::State, input: &Self::Input<'a>) -> Option<Self::State> {
+///     fn transition<'a>(state: &Self::State, input: &Self::Input<'a>) -> Option<(Self::State,
+///     Option<Self::Output>)> {
 ///         match (state, input) {
-///             (ParserState::Idle, ParserInput::Data(d)) if !d.is_empty() => Some(ParserState::Processing),
-///             (ParserState::Processing, ParserInput::Flush) => Some(ParserState::Idle),
+///             (ParserState::Idle, ParserInput::Data(d)) if !d.is_empty() => Some((ParserState::Processing, None)),
+///             (ParserState::Processing, ParserInput::Flush) => Some((ParserState::Idle, None)),
 ///             _ => None,
 ///         }
 ///     }
 ///
-///     fn output<'a>(_state: &Self::State, _input: &Self::Input<'a>) -> Option<Self::Output> {
-///         None
-///     }
 /// }
 ///
 /// let mut machine = StateMachine::<ParserImpl>::new();
@@ -292,41 +290,37 @@ pub use aquamarine::aquamarine;
 /// assert_eq!(machine.state(), &ParserState::Processing);
 /// ```
 pub trait StateMachineImpl {
-    /// The input alphabet. Uses a GAT to support lifetimes in input types,
-    /// enabling non-static references in inputs.
-    type Input<'a>;
-    /// The set of possible states.
-    type State;
-    /// The output alphabet.
-    type Output;
-    /// The initial state of the machine.
-    // allow since there is usually no interior mutability because states are enums
-    #[allow(clippy::declare_interior_mutable_const)]
-    const INITIAL_STATE: Self::State;
-    /// The transition fuction that outputs a new state based on the current
-    /// state and the provided input. Outputs `None` when there is no transition
-    /// for a given combination of the input and the state.
-    fn transition<'a>(state: &Self::State, input: &Self::Input<'a>) -> Option<Self::State>;
-    /// The output function that outputs some value from the output alphabet
-    /// based on the current state and the given input. Outputs `None` when
-    /// there is no output for a given combination of the input and the state.
-    fn output<'a>(state: &Self::State, input: &Self::Input<'a>) -> Option<Self::Output>;
+	/// The input alphabet. Uses a GAT to support lifetimes in input types,
+	/// enabling non-static references in inputs.
+	type Input<'a>;
+	/// The set of possible states.
+	type State;
+	/// The output alphabet.
+	type Output;
+	/// The initial state of the machine.
+	// allow since there is usually no interior mutability because states are enums
+	#[allow(clippy::declare_interior_mutable_const)]
+	const INITIAL_STATE: Self::State;
+	/// The transition fuction that outputs a new state based on the current
+	/// state and the provided input. Outputs `None` when there is no transition
+	/// for a given combination of the input and the state.
+	fn transition<'a>(state: &Self::State, input: &Self::Input<'a>) -> Option<(Self::State, Option<Self::Output>)>;
 
-    fn before_transition<'a>(_state: &Self::State, _input: &Self::Input<'a>) {}
-    fn after_transition<'a>(
-        _pre_state: &Self::State,
-        _input: &Self::Input<'a>,
-        _state: &Self::State,
-        _output: Option<&Self::Output>,
-    ) {
-    }
+	fn before_transition<'a>(_state: &Self::State, _input: &Self::Input<'a>) {}
+	fn after_transition<'a>(
+		_pre_state: &Self::State,
+		_input: &Self::Input<'a>,
+		_state: &Self::State,
+		_output: Option<&Self::Output>,
+	) {
+	}
 }
 
 /// A convenience wrapper around the `StateMachine` trait that encapsulates the
 /// state and transition and output function calls.
 #[derive(Debug, Clone)]
 pub struct StateMachine<T: StateMachineImpl> {
-    state: T::State,
+	state: T::State,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -336,72 +330,64 @@ pub struct TransitionImpossibleError;
 
 impl<T> StateMachine<T>
 where
-    T: StateMachineImpl,
+	T: StateMachineImpl,
 {
-    /// Create a new instance of this wrapper which encapsulates the initial
-    /// state.
-    pub fn new() -> Self {
-        Self::from_state(T::INITIAL_STATE)
-    }
+	/// Create a new instance of this wrapper which encapsulates the initial
+	/// state.
+	pub fn new() -> Self {
+		Self::from_state(T::INITIAL_STATE)
+	}
 
-    /// Create a new instance of this wrapper which encapsulates the given
-    /// state.
-    pub fn from_state(state: T::State) -> Self {
-        Self { state }
-    }
+	/// Create a new instance of this wrapper which encapsulates the given
+	/// state.
+	pub fn from_state(state: T::State) -> Self {
+		Self { state }
+	}
 
-    /// Consumes the provided input, gives an output and performs a state
-    /// transition. If a state transition with the current state and the
-    /// provided input is not allowed, returns an error.
-    ///
-    /// The input can contain non-static references thanks to the GAT-based
-    /// `Input<'a>` type.
-    pub fn consume<'a>(
-        &mut self,
-        input: &T::Input<'a>,
-    ) -> Result<Option<T::Output>, TransitionImpossibleError> {
-        let Some(mut state) = T::transition(&self.state, input) else {
-            return Err(TransitionImpossibleError);
-        };
+	/// Consumes the provided input, gives an output and performs a state
+	/// transition. If a state transition with the current state and the
+	/// provided input is not allowed, returns an error.
+	///
+	/// The input can contain non-static references thanks to the GAT-based
+	/// `Input<'a>` type.
+	pub fn consume<'a>(&mut self, input: &T::Input<'a>) -> Result<Option<T::Output>, TransitionImpossibleError> {
+		let Some((mut state, output)) = T::transition(&self.state, input) else {
+			return Err(TransitionImpossibleError);
+		};
 
-        T::before_transition(&self.state, input);
+		T::before_transition(&self.state, input);
+		core::mem::swap(&mut self.state, &mut state);
 
-        let output = T::output(&self.state, input);
-        core::mem::swap(&mut self.state, &mut state);
+		// Call after_transition hook
+		T::after_transition(&state, input, &self.state, output.as_ref());
 
-        // Call after_transition hook
-        T::after_transition(&state, input, &self.state, output.as_ref());
+		Ok(output)
+	}
 
-        Ok(output)
-    }
-
-    /// Returns the current state.
-    pub fn state(&self) -> &T::State {
-        &self.state
-    }
+	/// Returns the current state.
+	pub fn state(&self) -> &T::State {
+		&self.state
+	}
 }
 
 impl<T> Default for StateMachine<T>
 where
-    T: StateMachineImpl,
+	T: StateMachineImpl,
 {
-    fn default() -> Self {
-        Self::new()
-    }
+	fn default() -> Self {
+		Self::new()
+	}
 }
 
 impl fmt::Display for TransitionImpossibleError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "cannot perform a state transition from the current state with the provided input"
-        )
-    }
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "cannot perform a state transition from the current state with the provided input")
+	}
 }
 
 #[cfg(feature = "std")]
 impl Error for TransitionImpossibleError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
+	fn source(&self) -> Option<&(dyn Error + 'static)> {
+		None
+	}
 }
