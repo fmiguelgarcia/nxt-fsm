@@ -1,38 +1,57 @@
-use crate::{transition::SubTransition, UsedTypes};
+use crate::{transition::SubTransition, Event, Output, UsedTypes};
 
+use proc_macro2::TokenStream;
+use quote::quote;
 use std::collections::BTreeSet;
 use syn::{
-	braced, parenthesized,
+	braced,
 	parse::{Parse, ParseStream, Result},
-	token::{Comma, Paren},
-	Ident, Token,
+	token::Comma,
+	Expr, Ident, Token,
 };
 
 pub struct MultipleTransition {
-	pub bindings: Vec<Ident>,
+	pub match_expr: Box<Expr>,
 	pub sub_transitions: Vec<SubTransition>,
+}
+
+impl MultipleTransition {
+	pub fn to_token_stream(&self, state: &Ident, event: &Event) -> TokenStream {
+		let event = event.transition_case();
+		let match_expr = &self.match_expr;
+
+		let cases: Vec<TokenStream> = self
+			.sub_transitions
+			.iter()
+			.map(|sub| {
+				let pattern = &sub.pattern;
+				let next_state = &sub.next_state;
+				let output = Output::to_tokens(&sub.output);
+
+				quote! { #pattern => Some( (Self::State::#next_state, #output) ) }
+			})
+			.collect();
+
+		quote! {
+			(
+				Self::State::#state, Self::Input::#event) => match #match_expr {
+					#(#cases),*
+				}
+		}
+	}
 }
 
 impl Parse for MultipleTransition {
 	fn parse(input: ParseStream) -> Result<Self> {
 		let _ = input.parse::<Token![match]>()?;
+		let match_expr = Box::new(Expr::parse_without_eager_brace(input)?);
 
-		let bindings = if input.peek(Paren) {
-			let content;
-			parenthesized!(content in input);
-			let bindings = content.parse_terminated(Ident::parse, Comma)?;
-			bindings.into_iter().collect()
-		} else {
-			// Just one binding, so paren are optional
-			vec![input.parse::<Ident>()?]
-		};
-
-		let match_content;
-		braced!(match_content in input);
-		let sub_transitions = match_content.parse_terminated(SubTransition::parse, Comma)?;
+		let content;
+		braced!(content in input);
+		let sub_transitions = content.parse_terminated(SubTransition::parse, Comma)?;
 		let sub_transitions = sub_transitions.into_iter().collect();
 
-		Ok(Self { bindings, sub_transitions })
+		Ok(Self { match_expr, sub_transitions })
 	}
 }
 

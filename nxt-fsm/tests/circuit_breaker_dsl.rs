@@ -28,7 +28,7 @@ fn circit_breaker_dsl() {
 	let machine = Arc::new(Mutex::new(machine));
 	{
 		let mut lock = machine.lock().unwrap();
-		let res = lock.consume(&Input::Unsuccessful).unwrap();
+		let res = lock.dispatch(Input::Unsuccessful).unwrap();
 		assert!(matches!(res, Some(Output::SetupTimer)));
 		assert!(matches!(lock.state(), &State::Open));
 	}
@@ -38,7 +38,7 @@ fn circit_breaker_dsl() {
 	std::thread::spawn(move || {
 		std::thread::sleep(Duration::from_millis(500));
 		let mut lock = machine_wait.lock().unwrap();
-		let res = lock.consume(&Input::TimerTriggered).unwrap();
+		let res = lock.dispatch(Input::TimerTriggered).unwrap();
 		assert!(res.is_none());
 		assert!(matches!(lock.state(), &State::HalfOpen));
 	});
@@ -48,7 +48,7 @@ fn circit_breaker_dsl() {
 	std::thread::spawn(move || {
 		std::thread::sleep(Duration::from_millis(100));
 		let mut lock = machine_try.lock().unwrap();
-		let res = lock.consume(&Input::Successful);
+		let res = lock.dispatch(Input::Successful);
 		assert!(matches!(res, Err(TransitionImpossibleError)));
 		assert!(matches!(lock.state(), &State::Open));
 	});
@@ -57,7 +57,7 @@ fn circit_breaker_dsl() {
 	std::thread::sleep(Duration::from_millis(700));
 	{
 		let mut lock = machine.lock().unwrap();
-		let res = lock.consume(&Input::Successful).unwrap();
+		let res = lock.dispatch(Input::Successful).unwrap();
 		assert!(res.is_none());
 		assert!(matches!(lock.state(), &State::Closed));
 	}

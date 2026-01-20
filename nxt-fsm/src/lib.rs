@@ -2,8 +2,9 @@
 [![Documentation][docs-badge]][docs-link]
 [![Latest Version][crate-badge]][crate-link]
 
-The `rust-fsm` crate provides a simple and universal framework for building
+The `nxt-fsm` crate provides a simple and universal framework for building
 state machines in Rust with minimum effort.
+This crate has been inspired in `rust-fsm` crate.
 
 The essential part of this crate is the
 [`StateMachineImpl`](trait.StateMachineImpl.html) trait. This trait allows a
@@ -15,9 +16,8 @@ developer to provide a strict state machine definition, e.g. specify its:
 * An output alphabet - a set of entities that the state machine may output
   as results of its work.
 * A transition function - a function that changes the state of the state
-  machine based on its current state and the provided input.
-* An output function - a function that outputs something from the output
-  alphabet based on the current state and the provided inputs.
+  machine based on its current state and the provided input, and generates
+  an optional output.
 * The initial state of the machine.
 
 Note that on the implementation level such abstraction allows build any type
@@ -34,7 +34,7 @@ of state machines:
 ### Default
 
 - `std` - implement features that require the `std` environment. See below.
-- `dsl` - re-export `rust-fsm-dsl` from `rust-fsm`. Recommended to leave this on
+- `dsl` - re-export `nxt-fsm-dsl` from `nxt-fsm`. Recommended to leave this on
   for the best development experience.
 
 ### Non-default
@@ -45,7 +45,7 @@ of state machines:
 
 This library has the feature named `std` which is enabled by default. You
 may want to import this library as
-`rust-fsm = { version = "0.8", default-features = false, features = ["dsl"] }`
+`nxt-fsm = { version = "0.2", default-features = false, features = ["dsl"] }`
 to use it in a `no_std` environment. This only affects error types (the `Error`
 trait is only available in `std`).
 
@@ -56,7 +56,7 @@ also enabled by default.
 
 Initially this library was designed to build an easy to use DSL for defining
 state machines on top of it. Using the DSL will require to connect an
-additional crate `rust-fsm-dsl` (this is due to limitation of the procedural
+additional crate `nxt-fsm-dsl` (this is due to limitation of the procedural
 macros system).
 
 ### Using the DSL for defining state machines
@@ -219,11 +219,11 @@ wrappers (for now there is only `StateMachine`).
 You can see an example of the Circuit Breaker state machine in the
 [project repository][repo].
 
-[repo]: https://github.com/eugene-babichenko/rust-fsm
-[docs-badge]: https://docs.rs/rust-fsm/badge.svg
-[docs-link]: https://docs.rs/rust-fsm
-[crate-badge]: https://img.shields.io/crates/v/rust-fsm.svg
-[crate-link]: https://crates.io/crates/rust-fsm
+[repo]: https://github.com/fmiguelgarcia/nxt-fsm/
+[docs-badge]: https://docs.rs/nxt-fsm/badge.svg
+[docs-link]: https://docs.rs/nxt-fsm/
+[crate-badge]: https://img.shields.io/crates/v/nxt-fsm.svg
+[crate-link]: https://crates.io/crates/nxt-fsm
 [mermaid]: https://mermaid.js.org/
 */
 
@@ -273,7 +273,7 @@ pub use aquamarine::aquamarine;
 ///     type Output = ();
 ///     const INITIAL_STATE: Self::State = ParserState::Idle;
 ///
-///     fn transition<'a>(state: &Self::State, input: &Self::Input<'a>) -> Option<(Self::State,
+///     fn transition<'a>(state: &Self::State, input: Self::Input<'a>) -> Option<(Self::State,
 ///     Option<Self::Output>)> {
 ///         match (state, input) {
 ///             (ParserState::Idle, ParserInput::Data(d)) if !d.is_empty() => Some((ParserState::Processing, None)),
@@ -286,7 +286,7 @@ pub use aquamarine::aquamarine;
 ///
 /// let mut machine = StateMachine::<ParserImpl>::new();
 /// let local_data = vec![1, 2, 3];
-/// machine.consume(&ParserInput::Data(&local_data)).unwrap();
+/// machine.dispatch(ParserInput::Data(&local_data)).unwrap();
 /// assert_eq!(machine.state(), &ParserState::Processing);
 /// ```
 pub trait StateMachineImpl {
@@ -304,16 +304,10 @@ pub trait StateMachineImpl {
 	/// The transition fuction that outputs a new state based on the current
 	/// state and the provided input. Outputs `None` when there is no transition
 	/// for a given combination of the input and the state.
-	fn transition<'a>(state: &Self::State, input: &Self::Input<'a>) -> Option<(Self::State, Option<Self::Output>)>;
+	fn transition<'a>(state: &Self::State, input: Self::Input<'a>) -> Option<(Self::State, Option<Self::Output>)>;
 
 	fn before_transition<'a>(_state: &Self::State, _input: &Self::Input<'a>) {}
-	fn after_transition<'a>(
-		_pre_state: &Self::State,
-		_input: &Self::Input<'a>,
-		_state: &Self::State,
-		_output: Option<&Self::Output>,
-	) {
-	}
+	fn after_transition(_pre_state: &Self::State, _state: &Self::State, _output: Option<&Self::Output>) {}
 }
 
 /// A convenience wrapper around the `StateMachine` trait that encapsulates the
@@ -350,16 +344,15 @@ where
 	///
 	/// The input can contain non-static references thanks to the GAT-based
 	/// `Input<'a>` type.
-	pub fn consume<'a>(&mut self, input: &T::Input<'a>) -> Result<Option<T::Output>, TransitionImpossibleError> {
+	pub fn dispatch<'a>(&mut self, input: T::Input<'a>) -> Result<Option<T::Output>, TransitionImpossibleError> {
+		T::before_transition(&self.state, &input);
+
 		let Some((mut state, output)) = T::transition(&self.state, input) else {
 			return Err(TransitionImpossibleError);
 		};
-
-		T::before_transition(&self.state, input);
 		core::mem::swap(&mut self.state, &mut state);
 
-		// Call after_transition hook
-		T::after_transition(&state, input, &self.state, output.as_ref());
+		T::after_transition(&state, &self.state, output.as_ref());
 
 		Ok(output)
 	}

@@ -18,7 +18,7 @@ use state_machine_def::StateMachineDef;
 use transition::Transition;
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use std::collections::BTreeSet;
 use syn::{parse_macro_input, Ident};
 
@@ -32,10 +32,6 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
 	let sm_def = parse_macro_input!(tokens as StateMachineDef);
 
 	quote! { #sm_def }.into()
-}
-
-pub(crate) fn binding_args(count: usize) -> Vec<Ident> {
-	(0..count).map(|idx| format_ident!("__arg{idx}")).collect()
 }
 
 pub(crate) trait UsedTypes {

@@ -13,18 +13,18 @@ state_machine! {
 	Init(InputA) => A[OutA],
 	A(InputB) => B,
 	A(InputC) => C,
-	// Check `if` on single transition.
-	A(InputD (u32, String)) if |a: &u32, _: &str| *a > 100 => D,
+	// Check `if` on single transition with named fields.
+	A(InputD (a: u32, _b: String)) if a > 100 => D,
 	// Check multi transition from B
 	B => {
 		InputA => A [OutA],
 		InputC => C,
-		// Check `if` guards with bindings to input.
-		InputD(u32, String) if |a: &u32, b: &str| *a >= 42 && !b.is_empty() => D [OutD],
+		// Check `if` guards with bindings to input using named fields.
+		InputD(a: u32, b: String) if a >= 42 && !b.is_empty() => D [OutD],
 		// Check `if` guard without bindings
-		InputB if || COUNT.load(Ordering::Relaxed) > 0 => D,
+		InputB if COUNT.load(Ordering::Relaxed) > 0 => D,
 		// Check `match` guards
-		InputE(u32, u32) match (x,y) {
+		InputE(x: u32, y: u32) match (x,y) {
 		  (0..10, _) => A [OutA],
 		  (10.., 0..1_000) => B [OutB],
 		  (10.., 1_000..1_000_000) => C ,
@@ -53,7 +53,7 @@ state_machine! {
 	A (E1) => B [ O1 ],
 	B (E1) => C,
 	B (E2) => C [ || inc_o2() ],
-	B (E3(u32, String)) => A [ |a: &u32, b: &str| Self::Output::O3(*a, b.to_string()) ]
+	B (E3(a: u32, b: String)) => A [ || Self::Output::O3(a, b) ]
 }
 
 #[test]

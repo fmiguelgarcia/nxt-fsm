@@ -28,8 +28,8 @@ mod byte_processor_tests {
 
 		Idle => {
 			// NOTE: `data.len() == 4` is not allowed!
-			Process(&'a [u8]) if |data: &[u8]| data.len() > 4 => Processing,
-			Process(&'a [u8]) if |data: &[u8]| data.len() < 4 => Idle [TooSmall],
+			Process(data: &[u8]) if data.len() > 4 => Processing,
+			Process(data: &[u8]) if data.len() < 4 => Idle [TooSmall],
 		},
 		Processing(Flush) => Idle,
 		Validating(Flush) => Idle

@@ -17,7 +17,7 @@ mod user_system_tests {
 		user_system(Pending)
 
 		Pending => {
-			UserData(&'static str, u32, bool) match (_name, age, premium) {
+			UserData(name: &'static str, age: u32, premium: bool) match (name, age, premium) {
 				(_, 18.., true) => VipUser,
 				(_, 18.., _) => RegularUser,
 				(_, 0..18, _) => MinorUser [ParentalConsentRequired]
@@ -61,15 +61,15 @@ mod string_parser_tests {
 	string_parser(Idle)
 
 	Idle => {
-		WeightParse(&'static str, u32) match (text, weight) {
-			(&"start", _) => Running,
-			(&"stop", _) => Stopped,
+		WeightParse(text: &'static str, weight: u32) match (text, weight) {
+			("start", _) => Running,
+			("stop", _) => Stopped,
 			_ => Idle [UnknownCommand]
 		}
 	},
 	Running => {
-		Parse(&'static str) if |text: &str| text.starts_with("cmd:") => Running [CommandReceived],
-		Parse(&'static str) if |text: &str| text == "stop" => Stopped
+		Parse(text: &'static str) if text.starts_with("cmd:") => Running [CommandReceived],
+		Parse(text: &'static str) if text == "stop" => Stopped
 	},
 	Stopped(Reset) => Idle
 	}

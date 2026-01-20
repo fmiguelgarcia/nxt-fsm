@@ -168,7 +168,7 @@ impl ToTokens for StateMachineDef {
 
 				const INITIAL_STATE: Self::State = Self::State::#initial_state;
 
-				fn transition<'__input_lifetime>(state: &Self::State, input: &Self::Input<'__input_lifetime>) -> Option<(Self::State, Option<Self::Output>)> {
+				fn transition<'__input_lifetime>(state: &Self::State, input: Self::Input<'__input_lifetime>) -> Option<(Self::State, Option<Self::Output>)> {
 					match (state, input) {
 						#(#transition_cases)*
 						_ => None

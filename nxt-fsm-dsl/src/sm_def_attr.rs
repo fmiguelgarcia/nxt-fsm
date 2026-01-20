@@ -30,13 +30,12 @@ impl SMDefAttr {
 		// Generate after_transition implementation if provided
 		if let Some(ref expr) = self.after_transition {
 			quote! {
-				fn after_transition<'__input_lifetime>(
+				fn after_transition(
 					pre_state: &Self::State,
-					input: &Self::Input<'__input_lifetime>,
 					state: &Self::State,
 					output: Option<&Self::Output>,
 				) {
-					(#expr)(pre_state, input, state, output)
+					(#expr)(pre_state, state, output)
 				}
 			}
 		} else {

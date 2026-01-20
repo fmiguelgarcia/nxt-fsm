@@ -9,7 +9,7 @@ pub(crate) use sub_transition::SubTransition;
 use crate::{Event, UsedTypes};
 
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use std::{collections::BTreeSet, iter::once};
 use syn::{
 	parenthesized,
@@ -23,6 +23,18 @@ pub enum TransitionMode {
 	Multiple(MultipleTransition),
 }
 
+impl From<SingleTransition> for TransitionMode {
+	fn from(st: SingleTransition) -> Self {
+		Self::Single(Box::new(st))
+	}
+}
+
+impl From<MultipleTransition> for TransitionMode {
+	fn from(mt: MultipleTransition) -> Self {
+		Self::Multiple(mt)
+	}
+}
+
 /// Represents a part of state transition without the initial state. The `Parse`
 /// trait is implemented for the compact form.
 pub struct Transition {
@@ -34,16 +46,29 @@ pub struct Transition {
 impl Transition {
 	#[cfg(feature = "diagram")]
 	pub fn diagram(&self) -> Vec<String> {
-		use crate::diagram::{sanitize_closure, sanitize_expr};
+		use crate::diagram::sanitize_expr;
 
 		let state = self.parent_state.as_ref().expect(TN_PARENT_STATE_EXP);
 		match &self.mode {
 			TransitionMode::Single(stn) => {
-				let guard = stn.guard.as_ref().map(sanitize_closure).unwrap_or_default();
+				let guard = stn.guard.as_ref().map(sanitize_expr).unwrap_or_default();
 				let next_state = &stn.next_state;
 
-				let diagram_line = format!("///    {state} --> {next_state}: {} {guard}\n", self.event.name);
-				vec![diagram_line]
+				let mut lines = vec![];
+
+				// If there's an else clause, show both branches
+				if let Some(else_clause) = &stn.else_clause {
+					let if_line = format!("///    {state} --> {next_state}: {} [if {guard}]\n", self.event.name);
+					let else_next_state = &else_clause.next_state;
+					let else_line = format!("///    {state} --> {else_next_state}: {} [else]\n", self.event.name);
+					lines.push(if_line);
+					lines.push(else_line);
+				} else {
+					let diagram_line = format!("///    {state} --> {next_state}: {} {guard}\n", self.event.name);
+					lines.push(diagram_line);
+				}
+
+				lines
 			},
 			TransitionMode::Multiple(mtn) => mtn
 				.sub_transitions
@@ -62,24 +87,8 @@ impl ToTokens for Transition {
 	fn to_tokens(&self, tokens: &mut TokenStream) {
 		let state = self.parent_state.as_ref().expect(TN_PARENT_STATE_EXP);
 		let code = match &self.mode {
-			TransitionMode::Single(tn) => {
-				let event = self.event.transition_case();
-				quote! { (Self::State::#state, Self::Input::#event) #tn, }
-			},
-			TransitionMode::Multiple(mtn) => {
-				let bindings = &mtn.bindings;
-				let event = &self.event.name;
-				let cases = &mtn.sub_transitions;
-
-				quote! {
-					(
-						Self::State::#state,
-						Self::Input::#event ( #(#bindings),* )
-					) => match ( #(#bindings),* ) {
-							#(#cases),*
-						}
-				}
-			},
+			TransitionMode::Single(tn) => tn.to_token_stream(state, &self.event),
+			TransitionMode::Multiple(mtn) => mtn.to_token_stream(state, &self.event),
 		};
 
 		code.to_tokens(tokens)
@@ -96,13 +105,12 @@ impl Parse for Transition {
 			input.parse::<Event>()?
 		};
 
-		let mode = if input.peek(Token![match]) {
-			let mtn = input.parse::<MultipleTransition>()?;
-			TransitionMode::Multiple(mtn)
+		let mode: TransitionMode = if input.peek(Token![match]) {
+			input.parse::<MultipleTransition>()?.into()
 		} else {
-			let stn = input.parse::<SingleTransition>()?;
-			TransitionMode::Single(Box::new(stn))
+			input.parse::<SingleTransition>()?.into()
 		};
+
 		Ok(Self { parent_state: None, event, mode })
 	}
 }

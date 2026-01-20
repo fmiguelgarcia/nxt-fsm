@@ -13,7 +13,7 @@ fn log_before_transition(state: &State, input: &Input) {
 	println!("Before transition, from state {state:?} with input {input:?}")
 }
 
-fn count_yellow_pass(_pre_state: &State, _input: &Input, state: &State, output: Option<&Output>) {
+fn count_yellow_pass(_pre_state: &State, state: &State, output: Option<&Output>) {
 	if state == &State::Yellow && output == Some(&Output::Pass) {
 		YELLOW_PASS.fetch_add(1, Relaxed);
 	}
@@ -27,8 +27,7 @@ state_machine! {
 	Red(Timer) => Green [Go],
 	Green => {
 			Timer => Yellow,
-			Velocity(i32) if |velocity: &i32| *velocity < 30 => Yellow [ Break ],
-			Velocity(i32) if |velocity: &i32| *velocity >= 30 => Yellow [ Pass ],
+			Velocity(velocity: i32) if velocity < 30 => Yellow [ Break ] else => Yellow [ Pass ],
 		},
 	Yellow(Timer) => Red [Stop],
 }
@@ -45,7 +44,7 @@ where
 
 	let curr_yellow_pass = YELLOW_PASS.load(Relaxed);
 	for e in events.into_iter() {
-		let _ = machine.consume(&e);
+		let _ = machine.dispatch(e);
 	}
 
 	let diff_yellow_pass = YELLOW_PASS.load(Relaxed) - curr_yellow_pass;

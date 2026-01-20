@@ -18,7 +18,7 @@ where
 	let (states, outputs): (Vec<_>, Vec<_>) = inputs
 		.into_iter()
 		.map(|input| {
-			let output = machine.consume(&input)?;
+			let output = machine.dispatch(input)?;
 			let state = machine.state().clone();
 			Ok((state, output))
 		})

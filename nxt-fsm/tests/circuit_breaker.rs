@@ -33,7 +33,7 @@ impl StateMachineImpl for CircuitBreakerMachine {
 	type Output = CircuitBreakerOutputSetTimer;
 	const INITIAL_STATE: Self::State = CircuitBreakerState::Closed;
 
-	fn transition<'a>(state: &Self::State, input: &Self::Input<'a>) -> Option<(Self::State, Option<Self::Output>)> {
+	fn transition<'a>(state: &Self::State, input: Self::Input<'a>) -> Option<(Self::State, Option<Self::Output>)> {
 		match (state, input) {
 			(CircuitBreakerState::Closed, CircuitBreakerInput::Unsuccessful) => {
 				let next_state = CircuitBreakerState::Open;
@@ -62,7 +62,7 @@ fn circuit_breaker() {
 	let machine = Arc::new(Mutex::new(machine));
 	{
 		let mut lock = machine.lock().unwrap();
-		let res = lock.consume(&CircuitBreakerInput::Unsuccessful).unwrap();
+		let res = lock.dispatch(CircuitBreakerInput::Unsuccessful).unwrap();
 		assert_eq!(res, Some(CircuitBreakerOutputSetTimer));
 		assert_eq!(lock.state(), &CircuitBreakerState::Open);
 	}
@@ -72,7 +72,7 @@ fn circuit_breaker() {
 	std::thread::spawn(move || {
 		std::thread::sleep(Duration::from_millis(500));
 		let mut lock = machine_wait.lock().unwrap();
-		let res = lock.consume(&CircuitBreakerInput::TimerTriggered).unwrap();
+		let res = lock.dispatch(CircuitBreakerInput::TimerTriggered).unwrap();
 		assert_eq!(res, None);
 		assert_eq!(lock.state(), &CircuitBreakerState::HalfOpen);
 	});
@@ -82,7 +82,7 @@ fn circuit_breaker() {
 	std::thread::spawn(move || {
 		std::thread::sleep(Duration::from_millis(100));
 		let mut lock = machine_try.lock().unwrap();
-		let res = lock.consume(&CircuitBreakerInput::Successful);
+		let res = lock.dispatch(CircuitBreakerInput::Successful);
 		assert!(matches!(res, Err(TransitionImpossibleError)));
 		assert_eq!(lock.state(), &CircuitBreakerState::Open);
 	});
@@ -91,7 +91,7 @@ fn circuit_breaker() {
 	std::thread::sleep(Duration::from_millis(700));
 	{
 		let mut lock = machine.lock().unwrap();
-		let res = lock.consume(&CircuitBreakerInput::Successful).unwrap();
+		let res = lock.dispatch(CircuitBreakerInput::Successful).unwrap();
 		assert_eq!(res, None);
 		assert_eq!(lock.state(), &CircuitBreakerState::Closed);
 	}

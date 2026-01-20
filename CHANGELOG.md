@@ -7,7 +7,22 @@ adheres to [Semantic Versioning][semver].
 
 ## [Unreleased]
 
-### [0.1.0] - 2025-12-22
+## [0.2.0] - 2026-01-20
+
+### Changed
+
+- `StateMachineImpl::transition` now consumes its `input`.
+- `StateMachine::consume` has been renamed to `StateMachine::dispatch`.
+- `if` guards does not need an explicit `closure`.
+- `Output` closure does not need explicit parameter, it will `move` them.
+
+### Added
+
+- **`else` support for `if` guards**: You can now use `if-else` syntax in
+  transitions to specify alternative transitions when a guard condition fails.
+  - Syntax: `Event if condition => State else => ElseState [OptionalOutput]`
+
+## [0.1.0] - 2025-12-22
 
 ### Added
 
@@ -20,5 +35,6 @@ adheres to [Semantic Versioning][semver].
 
 [keepachangelog]: https://keepachangelog.com
 [semver]: https://semver.org
-[Unreleased]: https://github.com/fmiguelgarcia/nxt-fsm/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/fmiguelgarcia/nxt-fsm/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/fmiguelgarcia/nxt-fsm/releases/tag/v0.2.0
 [0.1.0]: https://github.com/fmiguelgarcia/nxt-fsm/releases/tag/v0.1.0

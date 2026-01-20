@@ -14,6 +14,33 @@ state_machine! {
 	}
 }
 
+// Define custom types for the authentication example
+#[derive(Debug, PartialEq)]
+pub enum AuthOutput {
+	AdminMode,
+	RegularMode(String),
+}
+
+state_machine! {
+	#[derive(Debug, PartialEq)]
+	#[state_machine(output(AuthOutput))]
+	pub auth_system(Unauthenticated)
+
+	use super::{AuthOutput};
+
+	Unauthenticated => {
+		PreLogin(age: u32) if age >= 18 => Login else => Restricted,
+	},
+	Login => {
+		Auth(user: String, pass: String) match (user.as_str(), pass.as_str()) {
+			("root", _pass) => Authenticated [ AdminMode ],
+			(_user, "") => Unauthenticated,
+			(user, _pass) => Authenticated [ || AuthOutput::RegularMode(user.to_string())],
+		},
+	},
+	Authenticated(Logout) => Unauthenticated,
+}
+
 // Define a custom output type for the calculator
 #[derive(Debug, PartialEq)]
 pub enum CalcOutput {
@@ -31,11 +58,11 @@ state_machine! {
 	use super::CalcOutput;
 
 	Idle => {
-		Add(i32, i32) => Idle [|a: &i32, b: &i32| CalcOutput::Result(a + b)],
-		Multiply(i32, i32) => Idle [|x: &i32, y: &i32| CalcOutput::Result(x * y)],
-		Divide(i32, i32) match (x, y) {
+		Add(a: i32, b: i32) => Idle [|| CalcOutput::Result(a + b)],
+		Multiply(x: i32, y: i32) => Idle [|| CalcOutput::Result(x * y)],
+		Divide(x: i32, y: i32) match (x, y) {
 			(_, 0) => ErrDivByZero,
-			(__arg0, __arg1) => Idle [ |x, y| CalcOutput::Result(x/y)]
+			(x, y) => Idle [ || CalcOutput::Result(x/y)]
 		}
 	},
 	ErrDivByZero(Reset) => Idle [Clear]
