@@ -7,14 +7,19 @@ adheres to [Semantic Versioning][semver].
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-01-20
+## [0.2.0] - 2026-01-28
 
 ### Changed
 
 - `StateMachineImpl::transition` now consumes its `input`.
-- `StateMachine::consume` has been renamed to `StateMachine::dispatch`.
+- `StateMachine::consume` has been renamed to `StateMachine::dispatch`, and on
+  transition error, the `input` is returned.
 - `if` guards does not need an explicit `closure`.
 - `Output` closure does not need explicit parameter, it will `move` them.
+
+### Removed
+
+- `TransitionImpossibleError`
 
 ### Added
 

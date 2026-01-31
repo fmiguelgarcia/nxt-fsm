@@ -7,6 +7,18 @@ mod event;
 mod output;
 mod sm_def_attr;
 mod state_def;
+// NOTE: current vesion of `fmt` fails on this mod:
+// ```
+// error[internal]: left behind trailing whitespace
+//   --> nxt-fsm/nxt-fsm-dsl/src/state_machine_def.rs:175:175:46
+//     |
+// 175 |  (_, input_as_err) => Err(input_as_err),
+//     | ^
+//     |
+//
+// warning: rustfmt has failed to format. See previous 1 errors.
+// ```
+#[rustfmt::skip]
 mod state_machine_def;
 mod transition;
 

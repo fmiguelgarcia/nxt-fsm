@@ -45,7 +45,7 @@ state_machine! {
 	[None, None, None, None, Some(Output::MaxRetriesExceeded)], 
 	[State::Processing, State::Failed, State::Processing, State::Failed, State::Failed]
 	=> Ok(()); "with retry logic")]
-fn test_guards_payment_system<I, O, S>( inputs: I, exp_outputs: O, exp_states: S) -> Result<(), TransitionImpossibleError>
+fn test_guards_payment_system<I, O, S>( inputs: I, exp_outputs: O, exp_states: S) -> Result<(), Input>
 	where
 		I: IntoIterator<Item = Input>,
 		O: IntoIterator<Item = Option<Output>>,

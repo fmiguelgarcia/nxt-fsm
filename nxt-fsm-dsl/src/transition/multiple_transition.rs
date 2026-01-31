@@ -28,7 +28,7 @@ impl MultipleTransition {
 				let next_state = &sub.next_state;
 				let output = Output::to_tokens(&sub.output);
 
-				quote! { #pattern => Some( (Self::State::#next_state, #output) ) }
+				quote! { #pattern => Ok( (Self::State::#next_state, #output) ) }
 			})
 			.collect();
 

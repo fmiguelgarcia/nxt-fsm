@@ -33,23 +33,25 @@ impl StateMachineImpl for CircuitBreakerMachine {
 	type Output = CircuitBreakerOutputSetTimer;
 	const INITIAL_STATE: Self::State = CircuitBreakerState::Closed;
 
-	fn transition<'a>(state: &Self::State, input: Self::Input<'a>) -> Option<(Self::State, Option<Self::Output>)> {
+	fn transition<'a>(
+		state: &Self::State,
+		input: Self::Input<'a>,
+	) -> Result<(Self::State, Option<Self::Output>), Self::Input<'a>> {
 		match (state, input) {
 			(CircuitBreakerState::Closed, CircuitBreakerInput::Unsuccessful) => {
 				let next_state = CircuitBreakerState::Open;
 				let output = Some(CircuitBreakerOutputSetTimer);
-				Some((next_state, output))
+				Ok((next_state, output))
 			},
 			(CircuitBreakerState::Open, CircuitBreakerInput::TimerTriggered) =>
-				Some((CircuitBreakerState::HalfOpen, None)),
-			(CircuitBreakerState::HalfOpen, CircuitBreakerInput::Successful) =>
-				Some((CircuitBreakerState::Closed, None)),
+				Ok((CircuitBreakerState::HalfOpen, None)),
+			(CircuitBreakerState::HalfOpen, CircuitBreakerInput::Successful) => Ok((CircuitBreakerState::Closed, None)),
 			(CircuitBreakerState::HalfOpen, CircuitBreakerInput::Unsuccessful) => {
 				let next_state = CircuitBreakerState::Open;
 				let output = Some(CircuitBreakerOutputSetTimer);
-				Some((next_state, output))
+				Ok((next_state, output))
 			},
-			_ => None,
+			(_, input_as_err) => Err(input_as_err),
 		}
 	}
 }
@@ -83,7 +85,7 @@ fn circuit_breaker() {
 		std::thread::sleep(Duration::from_millis(100));
 		let mut lock = machine_try.lock().unwrap();
 		let res = lock.dispatch(CircuitBreakerInput::Successful);
-		assert!(matches!(res, Err(TransitionImpossibleError)));
+		assert!(matches!(res, Err(CircuitBreakerInput::Successful)));
 		assert_eq!(lock.state(), &CircuitBreakerState::Open);
 	});
 

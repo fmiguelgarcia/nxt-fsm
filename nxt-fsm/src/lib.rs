@@ -229,10 +229,6 @@ You can see an example of the Circuit Breaker state machine in the
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use core::fmt;
-#[cfg(feature = "std")]
-use std::error::Error;
-
 #[cfg(feature = "dsl")]
 pub use nxt_fsm_dsl::state_machine;
 
@@ -273,12 +269,12 @@ pub use aquamarine::aquamarine;
 ///     type Output = ();
 ///     const INITIAL_STATE: Self::State = ParserState::Idle;
 ///
-///     fn transition<'a>(state: &Self::State, input: Self::Input<'a>) -> Option<(Self::State,
-///     Option<Self::Output>)> {
+///     fn transition<'a>(state: &Self::State, input: Self::Input<'a>) -> Result<(Self::State,
+///     Option<Self::Output>), Self::Input<'a>> {
 ///         match (state, input) {
-///             (ParserState::Idle, ParserInput::Data(d)) if !d.is_empty() => Some((ParserState::Processing, None)),
-///             (ParserState::Processing, ParserInput::Flush) => Some((ParserState::Idle, None)),
-///             _ => None,
+///             (ParserState::Idle, ParserInput::Data(d)) if !d.is_empty() => Ok((ParserState::Processing, None)),
+///             (ParserState::Processing, ParserInput::Flush) => Ok((ParserState::Idle, None)),
+///             (_, input_as_err) => Err(input_as_err),
 ///         }
 ///     }
 ///
@@ -304,7 +300,10 @@ pub trait StateMachineImpl {
 	/// The transition fuction that outputs a new state based on the current
 	/// state and the provided input. Outputs `None` when there is no transition
 	/// for a given combination of the input and the state.
-	fn transition<'a>(state: &Self::State, input: Self::Input<'a>) -> Option<(Self::State, Option<Self::Output>)>;
+	fn transition<'a>(
+		state: &Self::State,
+		input: Self::Input<'a>,
+	) -> Result<(Self::State, Option<Self::Output>), Self::Input<'a>>;
 
 	fn before_transition<'a>(_state: &Self::State, _input: &Self::Input<'a>) {}
 	fn after_transition(_pre_state: &Self::State, _state: &Self::State, _output: Option<&Self::Output>) {}
@@ -316,11 +315,6 @@ pub trait StateMachineImpl {
 pub struct StateMachine<T: StateMachineImpl> {
 	state: T::State,
 }
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-/// An error type that represents that the state transition is impossible given
-/// the current combination of state and input.
-pub struct TransitionImpossibleError;
 
 impl<T> StateMachine<T>
 where
@@ -344,12 +338,10 @@ where
 	///
 	/// The input can contain non-static references thanks to the GAT-based
 	/// `Input<'a>` type.
-	pub fn dispatch<'a>(&mut self, input: T::Input<'a>) -> Result<Option<T::Output>, TransitionImpossibleError> {
+	pub fn dispatch<'a>(&mut self, input: T::Input<'a>) -> Result<Option<T::Output>, T::Input<'a>> {
 		T::before_transition(&self.state, &input);
 
-		let Some((mut state, output)) = T::transition(&self.state, input) else {
-			return Err(TransitionImpossibleError);
-		};
+		let (mut state, output) = T::transition(&self.state, input)?;
 		core::mem::swap(&mut self.state, &mut state);
 
 		T::after_transition(&state, &self.state, output.as_ref());
@@ -369,18 +361,5 @@ where
 {
 	fn default() -> Self {
 		Self::new()
-	}
-}
-
-impl fmt::Display for TransitionImpossibleError {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "cannot perform a state transition from the current state with the provided input")
-	}
-}
-
-#[cfg(feature = "std")]
-impl Error for TransitionImpossibleError {
-	fn source(&self) -> Option<&(dyn Error + 'static)> {
-		None
 	}
 }

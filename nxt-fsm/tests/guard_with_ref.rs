@@ -9,7 +9,7 @@ mod byte_processor_tests {
 	use test_case::test_case;
 
 	/// Custom Input type with non-static lifetime for the buffer processor.
-	#[derive(Debug)]
+	#[derive(Debug, PartialEq, Eq)]
 	pub enum BufferInput<'a> {
 		/// Process a buffer slice with a non-static lifetime
 		Process(&'a [u8]),
@@ -36,10 +36,10 @@ mod byte_processor_tests {
 	}
 
 	#[test_case( [BufferInput::Process(&[])], [Some(Output::TooSmall)], [State::Idle] => Ok(()); "Empty data")]
-	#[test_case( [BufferInput::Process(&[1,2,3,4])], [], [] => Err(TransitionImpossibleError); "Data len 4 is invalid transition")]
+	#[test_case( [BufferInput::Process(&[1,2,3,4])], [], [] => Err(BufferInput::Process(&[1,2,3,4])); "Data len 4 is invalid transition")]
 	#[test_case( [BufferInput::Process(&[1,2,3,4,5])], [None], [State::Processing] => Ok(()); "Process data")]
 	#[test_case( [BufferInput::Process(&[1,2,3,4,5]), BufferInput::Flush], [None, None], [State::Processing, State::Idle] => Ok(()); "Process data and flush")]
-	fn test<'a, I, O, S>(inputs: I, exp_outputs: O, exp_states: S) -> Result<(), TransitionImpossibleError>
+	fn test<'a, I, O, S>(inputs: I, exp_outputs: O, exp_states: S) -> Result<(), BufferInput<'a>>
 	where
 		I: IntoIterator<Item = BufferInput<'a>>,
 		O: IntoIterator<Item = Option<Output>>,

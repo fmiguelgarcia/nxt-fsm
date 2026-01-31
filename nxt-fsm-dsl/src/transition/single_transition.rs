@@ -35,9 +35,9 @@ impl SingleTransition {
 
 				quote! {
 					(Self::State::#state, Self::Input::#event) => if ( #guard ) {
-						Some((Self::State::#next_state, #output))
+						Ok((Self::State::#next_state, #output))
 					} else {
-						Some((Self::State::#else_next, #else_output))
+						Ok((Self::State::#else_next, #else_output))
 					},
 				}
 			},
@@ -45,13 +45,13 @@ impl SingleTransition {
 				// `if` guard
 				quote! {
 					(Self::State::#state, Self::Input::#event) if ( #guard ) => {
-						Some((Self::State::#next_state, #output))
+						Ok((Self::State::#next_state, #output))
 					},
 				}
 			},
 			(None, None) => {
 				quote! {
-					(Self::State::#state, Self::Input::#event) => Some((Self::State::#next_state, #output)),
+					(Self::State::#state, Self::Input::#event) => Ok((Self::State::#next_state, #output)),
 				}
 			},
 			_ => unreachable!("`else` guard witout `if`"),
