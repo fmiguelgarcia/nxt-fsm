@@ -27,11 +27,11 @@ mod calculator_tests {
 		use super::COutput;
 
 		Idle => {
-			Add(i32, i32) => Idle [|a: &i32, b: &i32| COutput::Result(a + b)],
-			Multiply(i32, i32) => Idle [|x: &i32, y: &i32| COutput::Result(x * y)],
-			Divide(i32, i32) match (a,b) {
+			Add(a: i32, b: i32) => Idle [|| COutput::Result(a + b)],
+			Multiply(x: i32, y: i32) => Idle [|| COutput::Result(x * y)],
+			Divide(a: i32, b: i32) match (a,b) {
 				(_, 0) => ErrS [ ErrDiv0 ],
-				(__arg0, __arg1) => Idle [ |x: &i32, y: &i32| COutput::Result(x/y)]
+				(a, b) => Idle [ || COutput::Result(a/b)]
 			},
 		},
 		ErrS (Reset) => Idle,
@@ -70,8 +70,8 @@ mod string_processor_tests {
 		use super::StringOutput;
 
 		Ready => {
-			Process(String) => Ready [|s: &String| StringOutput::Length(s.len())],
-			Concat(String, String) => Ready [ |a: &str, b: &str| StringOutput::Combined(format!("{a}{b}"))],
+			Process(s: String) => Ready [|| StringOutput::Length(s.len())],
+			Concat(a: String, b: String) => Ready [ || StringOutput::Combined(format!("{a}{b}"))],
 			Clear => Ready
 		}
 	}
@@ -81,12 +81,12 @@ mod string_processor_tests {
 		let mut machine = string_processor::StateMachine::new();
 
 		// Test string length
-		let result = machine.consume(&string_processor::Input::Process("hello".to_string())).unwrap();
+		let result = machine.dispatch(string_processor::Input::Process("hello".to_string())).unwrap();
 		assert_eq!(result, Some(StringOutput::Length(5)));
 
 		// Test concatenation
 		let result =
-			machine.consume(&string_processor::Input::Concat("Hello".to_string(), "World".to_string())).unwrap();
+			machine.dispatch(string_processor::Input::Concat("Hello".to_string(), "World".to_string())).unwrap();
 		assert_eq!(result, Some(StringOutput::Combined("HelloWorld".to_string())));
 	}
 }
@@ -111,7 +111,7 @@ mod validator_tests {
 		use super::ValidatorOutput;
 
 		Waiting => {
-			CheckRange(i32, i32, i32) => Waiting [|value: &i32, start: &i32, end: &i32| {
+			CheckRange(value: i32, start: i32, end: i32) => Waiting [|| {
 				if value >= start && value < end {
 					ValidatorOutput::Valid
 				} else {
@@ -131,6 +131,6 @@ mod validator_tests {
 	fn test_closure_captures_complex_logic(value: i32, range: Range<i32>) -> ValidatorOutput {
 		let mut machine = validator::StateMachine::new();
 
-		machine.consume(&validator::Input::CheckRange(value, range.start, range.end)).unwrap().unwrap()
+		machine.dispatch(validator::Input::CheckRange(value, range.start, range.end)).unwrap().unwrap()
 	}
 }

@@ -5,7 +5,7 @@ state_machine! {
 	turnstile(Locked)
 
 	Locked => {
-		Coin(u32) => Unlocked,
+		Coin(_c: u32) => Unlocked,
 		Push => Locked
 	},
 	Unlocked(Push) => Locked
@@ -16,42 +16,44 @@ state_machine! {
 	complex_machine(Start)
 
 	Start => {
-		Data(String, u32, bool) => Processing,
+		Data(_s: String, _a: u32, _p: bool) => Processing,
 		Skip => End
 	},
 	Processing => {
 		Complete => End,
-		Retry(u32) => Processing
+		Retry(_c: u32) => Processing
 	},
 	End(Reset) => Start
 }
 
 #[test]
 fn tuple_variant_input() {
-	let mut machine = turnstile::StateMachine::new();
+	use turnstile::{Input, State, StateMachine};
+
+	let mut machine = StateMachine::new();
 
 	// Initial state should be Locked
-	assert!(matches!(machine.state(), &turnstile::State::Locked));
+	assert!(matches!(machine.state(), &State::Locked));
 
 	// Insert coin (tuple variant with u32 value)
-	let res = machine.consume(&turnstile::Input::Coin(100));
+	let res = machine.dispatch(Input::Coin(100));
 	assert!(res.is_ok());
-	assert!(matches!(machine.state(), &turnstile::State::Unlocked));
+	assert!(matches!(machine.state(), &State::Unlocked));
 
 	// Push through (unit variant)
-	let res = machine.consume(&turnstile::Input::Push);
+	let res = machine.dispatch(Input::Push);
 	assert!(res.is_ok());
-	assert!(matches!(machine.state(), &turnstile::State::Locked));
+	assert!(matches!(machine.state(), &State::Locked));
 
 	// Try to push when locked
-	let res = machine.consume(&turnstile::Input::Push);
+	let res = machine.dispatch(Input::Push);
 	assert!(res.is_ok());
-	assert!(matches!(machine.state(), &turnstile::State::Locked));
+	assert!(matches!(machine.state(), &State::Locked));
 
 	// Insert different coin amount
-	let res = machine.consume(&turnstile::Input::Coin(50));
+	let res = machine.dispatch(Input::Coin(50));
 	assert!(res.is_ok());
-	assert!(matches!(machine.state(), &turnstile::State::Unlocked));
+	assert!(matches!(machine.state(), &State::Unlocked));
 }
 
 #[test]
@@ -69,25 +71,27 @@ fn tuple_variant_pattern_matching() {
 
 #[test]
 fn complex_tuple_variants() {
-	let mut machine = complex_machine::StateMachine::new();
+	use complex_machine::{Input, State, StateMachine};
+
+	let mut machine = StateMachine::new();
 
 	// Test multi-field tuple variant
-	let res = machine.consume(&complex_machine::Input::Data("test".to_string(), 42, true));
+	let res = machine.dispatch(Input::Data("test".to_string(), 42, true));
 	assert!(res.is_ok());
-	assert!(matches!(machine.state(), &complex_machine::State::Processing));
+	assert!(matches!(machine.state(), &State::Processing));
 
 	// Test single-field tuple variant
-	let res = machine.consume(&complex_machine::Input::Retry(3));
+	let res = machine.dispatch(Input::Retry(3));
 	assert!(res.is_ok());
-	assert!(matches!(machine.state(), &complex_machine::State::Processing));
+	assert!(matches!(machine.state(), &State::Processing));
 
 	// Test unit variant
-	let res = machine.consume(&complex_machine::Input::Complete);
+	let res = machine.dispatch(Input::Complete);
 	assert!(res.is_ok());
-	assert!(matches!(machine.state(), &complex_machine::State::End));
+	assert!(matches!(machine.state(), &State::End));
 
 	// Test reset
-	let res = machine.consume(&complex_machine::Input::Reset);
+	let res = machine.dispatch(Input::Reset);
 	assert!(res.is_ok());
-	assert!(matches!(machine.state(), &complex_machine::State::Start));
+	assert!(matches!(machine.state(), &State::Start));
 }

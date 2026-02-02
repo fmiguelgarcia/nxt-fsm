@@ -16,16 +16,16 @@ state_machine! {
 	payment_system(Idle)
 
 	Idle => {
-		StartPayment(u32) if |amount: &u32| *amount >= 100 => Processing,
-		StartPayment(u32) if |amount: &u32| *amount < 100 => Idle [InsufficientAmount],
+		StartPayment(amount: u32) if amount >= 100 => Processing
+			else => Idle [InsufficientAmount],
 		Cancel => Idle
 	},
 	Processing => {
-		Complete => Success,
+		Complete(perc: u32) if perc <= 100 => Success,
 		Fail => Failed
 	},
 	Failed => {
-		Retry(u32) match attempts {
+		Retry(attempts: u32) match attempts {
 			0..3 => Processing,
 			3.. => Failed [MaxRetriesExceeded]
 		},
@@ -36,7 +36,7 @@ state_machine! {
 
 #[rustfmt::skip]
 #[test_case( 
-	[StartPayment(50), StartPayment(150), Complete], 
+	[StartPayment(50), StartPayment(150), Complete(100)], 
 	[Some(InsufficientAmount), None, None], 
 	[State::Idle, State::Processing, State::Success] 
 	=> Ok(()); "with amount")]
@@ -45,7 +45,7 @@ state_machine! {
 	[None, None, None, None, Some(Output::MaxRetriesExceeded)], 
 	[State::Processing, State::Failed, State::Processing, State::Failed, State::Failed]
 	=> Ok(()); "with retry logic")]
-fn test_guards_payment_system<I, O, S>( inputs: I, exp_outputs: O, exp_states: S) -> Result<(), TransitionImpossibleError>
+fn test_guards_payment_system<I, O, S>( inputs: I, exp_outputs: O, exp_states: S) -> Result<(), Input>
 	where
 		I: IntoIterator<Item = Input>,
 		O: IntoIterator<Item = Option<Output>>,

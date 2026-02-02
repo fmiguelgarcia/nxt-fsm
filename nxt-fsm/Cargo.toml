@@ -1,6 +1,6 @@
 [package]
 name = "nxt-fsm"
-version = "0.1.0"
+version = "0.2.0"
 description = "A framework and a DSL for building finite state machines in Rust"
 edition.workspace = true
 authors.workspace = true
@@ -16,10 +16,10 @@ readme = "../README.md"
 workspace = true
 
 [features]
-default = ["std", "dsl"]
+default = [ "dsl", "std" ]
 std = []
-dsl = ["nxt-fsm-dsl"]
-diagram = ["aquamarine", "nxt-fsm-dsl/diagram"]
+dsl = [ "nxt-fsm-dsl" ]
+diagram = [ "aquamarine", "nxt-fsm-dsl/diagram" ]
 
 [dependencies]
 nxt-fsm-dsl = { workspace = true, optional = true }

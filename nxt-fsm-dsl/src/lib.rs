@@ -7,6 +7,18 @@ mod event;
 mod output;
 mod sm_def_attr;
 mod state_def;
+// NOTE: current vesion of `fmt` fails on this mod:
+// ```
+// error[internal]: left behind trailing whitespace
+//   --> nxt-fsm/nxt-fsm-dsl/src/state_machine_def.rs:175:175:46
+//     |
+// 175 |  (_, input_as_err) => Err(input_as_err),
+//     | ^
+//     |
+//
+// warning: rustfmt has failed to format. See previous 1 errors.
+// ```
+#[rustfmt::skip]
 mod state_machine_def;
 mod transition;
 
@@ -18,7 +30,7 @@ use state_machine_def::StateMachineDef;
 use transition::Transition;
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use std::collections::BTreeSet;
 use syn::{parse_macro_input, Ident};
 
@@ -32,10 +44,6 @@ pub fn state_machine(tokens: TokenStream) -> TokenStream {
 	let sm_def = parse_macro_input!(tokens as StateMachineDef);
 
 	quote! { #sm_def }.into()
-}
-
-pub(crate) fn binding_args(count: usize) -> Vec<Ident> {
-	(0..count).map(|idx| format_ident!("__arg{idx}")).collect()
 }
 
 pub(crate) trait UsedTypes {

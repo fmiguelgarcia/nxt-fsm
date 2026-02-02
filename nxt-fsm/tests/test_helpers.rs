@@ -1,4 +1,4 @@
-use nxt_fsm::{StateMachine, StateMachineImpl, TransitionImpossibleError};
+use nxt_fsm::{StateMachine, StateMachineImpl};
 use std::fmt::Debug;
 
 pub fn state_machine_proc<'i, I, O, S, SM, II, IO, IS>(
@@ -6,7 +6,7 @@ pub fn state_machine_proc<'i, I, O, S, SM, II, IO, IS>(
 	inputs: II,
 	exp_outputs: IO,
 	exp_states: IS,
-) -> Result<(), TransitionImpossibleError>
+) -> Result<(), I>
 where
 	SM: StateMachineImpl<Input<'i> = I, Output = O, State = S>,
 	S: Clone + PartialEq + Debug,
@@ -18,7 +18,7 @@ where
 	let (states, outputs): (Vec<_>, Vec<_>) = inputs
 		.into_iter()
 		.map(|input| {
-			let output = machine.consume(&input)?;
+			let output = machine.dispatch(input)?;
 			let state = machine.state().clone();
 			Ok((state, output))
 		})
