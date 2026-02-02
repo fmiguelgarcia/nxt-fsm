@@ -11,7 +11,7 @@ impl Context {
 			return false;
 		}
 
-		let is_passed = self.passwords.iter().find(|pass| *pass == user_input).is_some();
+		let is_passed = self.passwords.iter().any(|pass| pass == user_input);
 		if !is_passed {
 			self.failed_retries += 1;
 		}

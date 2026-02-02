@@ -303,6 +303,7 @@ pub trait StateMachineImpl {
 	/// The transition fuction that outputs a new state based on the current
 	/// state and the provided input. Outputs `None` when there is no transition
 	/// for a given combination of the input and the state.
+	#[allow(clippy::type_complexity)]
 	fn transition<'a>(
 		context: &mut Self::Context,
 		state: &Self::State,
@@ -317,7 +318,7 @@ pub trait StateMachineImpl {
 /// state and transition and output function calls.
 #[derive(Debug, Clone)]
 pub struct StateMachine<T: StateMachineImpl> {
-	pub state: T::State,
+	state: T::State,
 	pub context: T::Context,
 }
 
@@ -359,6 +360,10 @@ where
 
 	pub fn context(&self) -> &T::Context {
 		&self.context
+	}
+
+	pub fn mut_context(&mut self) -> &mut T::Context {
+		&mut self.context
 	}
 }
 
