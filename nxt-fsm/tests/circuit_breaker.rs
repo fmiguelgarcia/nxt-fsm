@@ -31,9 +31,11 @@ impl StateMachineImpl for CircuitBreakerMachine {
 	type Input<'a> = CircuitBreakerInput;
 	type State = CircuitBreakerState;
 	type Output = CircuitBreakerOutputSetTimer;
+	type Context = ();
 	const INITIAL_STATE: Self::State = CircuitBreakerState::Closed;
 
 	fn transition<'a>(
+		_context: &mut Self::Context,
 		state: &Self::State,
 		input: Self::Input<'a>,
 	) -> Result<(Self::State, Option<Self::Output>), Self::Input<'a>> {
@@ -58,7 +60,7 @@ impl StateMachineImpl for CircuitBreakerMachine {
 
 #[test]
 fn circuit_breaker() {
-	let machine: StateMachine<CircuitBreakerMachine> = StateMachine::new();
+	let machine: StateMachine<CircuitBreakerMachine> = StateMachine::default();
 
 	// Unsuccessful request
 	let machine = Arc::new(Mutex::new(machine));

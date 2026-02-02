@@ -38,7 +38,7 @@ state_machine! {
 
 #[test]
 fn circuit_breaker_dsl_custom_types() {
-	let machine = circuit_breaker::StateMachine::new();
+	let machine = circuit_breaker::StateMachine::default();
 
 	// Unsuccessful request
 	let machine = Arc::new(Mutex::new(machine));

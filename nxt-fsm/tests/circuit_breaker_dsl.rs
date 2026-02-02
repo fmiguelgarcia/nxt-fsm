@@ -23,7 +23,7 @@ state_machine! {
 fn circit_breaker_dsl() {
 	use circuit_breaker::{Input, Output, State, StateMachine};
 
-	let machine = StateMachine::new();
+	let machine = StateMachine::default();
 
 	// Unsuccessful request
 	let machine = Arc::new(Mutex::new(machine));

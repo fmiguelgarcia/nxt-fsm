@@ -51,6 +51,6 @@ fn test_guards_payment_system<I, O, S>( inputs: I, exp_outputs: O, exp_states: S
 		O: IntoIterator<Item = Option<Output>>,
 		S: IntoIterator<Item = State>,
 {
-	let mut machine = StateMachine::new();
+	let mut machine = StateMachine::default();
 	state_machine_proc(&mut machine, inputs, exp_outputs, exp_states)
 }

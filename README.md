@@ -139,7 +139,7 @@ This state machine can be used as follows:
 
 ```rust,ignore
 // Initialize the state machine. The state is `Closed` now.
-let mut machine = circuit_breaker::StateMachine::new();
+let mut machine = circuit_breaker::StateMachine::default();
 // Consume the `Successful` input. No state transition is performed.
 let _ = machine.consume(&circuit_breaker::Input::Successful);
 // Consume the `Unsuccesful` input. The machine is moved to the `Open`
@@ -200,7 +200,7 @@ state_machine! {
     }
 }
 
-let mut machine = turnstile::StateMachine::new();
+let mut machine = turnstile::StateMachine::default();
 
 // Insufficient coin - stays locked
 let res = machine.consume(&turnstile::Input::Coin(25));
@@ -268,7 +268,7 @@ state_machine! {
     }
 }
 
-let mut machine = calculator::StateMachine::new();
+let mut machine = calculator::StateMachine::default();
 
 // Addition: 5 + 3 = 8
 let result = machine.consume(&calculator::Input::Add(5, 3)).unwrap();
@@ -320,7 +320,7 @@ state_machine! {
     UserMode(Logout) => Idle,
 }
 
-let mut machine = auth_system::StateMachine::new();
+let mut machine = auth_system::StateMachine::default();
 
 // Authenticate with non-empty username
 let res = machine.consume(&auth_system::Input::Authenticate("alice"));

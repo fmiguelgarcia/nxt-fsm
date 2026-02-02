@@ -40,7 +40,7 @@ fn before_after_tx<I>(events: I, exp_yellow_pass: u32)
 where
 	I: IntoIterator<Item = Input>,
 {
-	let mut machine = StateMachine::new();
+	let mut machine = StateMachine::default();
 
 	let curr_yellow_pass = YELLOW_PASS.load(Relaxed);
 	for e in events.into_iter() {

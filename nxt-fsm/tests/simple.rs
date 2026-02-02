@@ -13,7 +13,7 @@ door(Open)
 
 #[test]
 fn simple() {
-	let mut machine = door::StateMachine::new();
+	let mut machine = door::StateMachine::default();
 	machine.dispatch(door::Input::Key).unwrap();
 	println!("{:?}", machine.state());
 	machine.dispatch(door::Input::Key).unwrap();

@@ -30,7 +30,7 @@ state_machine! {
 fn tuple_variant_input() {
 	use turnstile::{Input, State, StateMachine};
 
-	let mut machine = StateMachine::new();
+	let mut machine = StateMachine::default();
 
 	// Initial state should be Locked
 	assert!(matches!(machine.state(), &State::Locked));
@@ -73,7 +73,7 @@ fn tuple_variant_pattern_matching() {
 fn complex_tuple_variants() {
 	use complex_machine::{Input, State, StateMachine};
 
-	let mut machine = StateMachine::new();
+	let mut machine = StateMachine::default();
 
 	// Test multi-field tuple variant
 	let res = machine.dispatch(Input::Data("test".to_string(), 42, true));

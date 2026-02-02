@@ -1,12 +1,12 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{meta::ParseNestedMeta, parenthesized, parse::Result, Attribute, Expr, Path};
+use syn::{meta::ParseNestedMeta, parenthesized, parse::Result, Attribute, Expr, Path, Type};
 
-#[derive(Default)]
 pub struct SMDefAttr {
 	pub input_type: Option<Path>,
 	pub state_type: Option<Path>,
 	pub output_type: Option<Path>,
+	pub context_type: Type,
 	pub before_transition: Option<Expr>,
 	pub after_transition: Option<Expr>,
 }
@@ -62,6 +62,9 @@ impl SMDefAttr {
 			"output" => {
 				self.output_type = Some(content.parse::<Path>()?);
 			},
+			"context" => {
+				self.context_type = content.parse::<Type>()?;
+			},
 			"before_transition" => {
 				self.before_transition = Some(content.parse::<Expr>()?);
 			},
@@ -72,6 +75,21 @@ impl SMDefAttr {
 		}
 
 		Ok(())
+	}
+}
+
+impl Default for SMDefAttr {
+	fn default() -> Self {
+		let context_type: Type = syn::parse_str("()").expect("unit type");
+
+		Self {
+			input_type: None,
+			state_type: None,
+			output_type: None,
+			context_type,
+			before_transition: None,
+			after_transition: None,
+		}
 	}
 }
 

@@ -45,7 +45,7 @@ mod byte_processor_tests {
 		O: IntoIterator<Item = Option<Output>>,
 		S: IntoIterator<Item = State>,
 	{
-		let mut machine = StateMachine::new();
+		let mut machine = StateMachine::default();
 		state_machine_proc(&mut machine, inputs, exp_outputs, exp_states)
 	}
 }

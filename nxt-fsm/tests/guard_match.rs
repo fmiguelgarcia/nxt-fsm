@@ -37,7 +37,7 @@ mod user_system_tests {
 		O: IntoIterator<Item = Option<Output>>,
 		S: IntoIterator<Item = State>,
 	{
-		let mut machine = StateMachine::new();
+		let mut machine = StateMachine::default();
 		state_machine_proc(&mut machine, inputs, exp_outputs, exp_states)
 	}
 }
@@ -80,7 +80,7 @@ mod string_parser_tests {
 		O: IntoIterator<Item = Option<Output>>,
 		S: IntoIterator<Item = State>,
 	{
-		let mut machine = string_parser::StateMachine::new();
+		let mut machine = string_parser::StateMachine::default();
 		state_machine_proc(&mut machine, inputs, exp_outputs, exp_states)
 	}
 }

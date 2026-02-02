@@ -59,7 +59,7 @@ state_machine! {
 #[test]
 fn dsl_syntax() {
 	/*
-	let mut machine = door::StateMachine::new();
+	let mut machine = door::StateMachine::default();
 	machine.consume(&door::Input::Key).unwrap();
 	println!("{:?}", machine.state());
 	machine.consume(&door::Input::Key).unwrap();

@@ -99,7 +99,7 @@ This state machine can be used as follows:
 
 ```rust,ignore
 // Initialize the state machine. The state is `Closed` now.
-let mut machine = circuit_breaker::StateMachine::new();
+let mut machine = circuit_breaker::StateMachine::default();
 // Consume the `Successful` input. No state transition is performed.
 let _ = machine.consume(&circuit_breaker::Input::Successful);
 // Consume the `Unsuccesful` input. The machine is moved to the `Open`
@@ -293,6 +293,9 @@ pub trait StateMachineImpl {
 	type State;
 	/// The output alphabet.
 	type Output;
+	/// The context type.
+	type Context;
+
 	/// The initial state of the machine.
 	// allow since there is usually no interior mutability because states are enums
 	#[allow(clippy::declare_interior_mutable_const)]
@@ -301,6 +304,7 @@ pub trait StateMachineImpl {
 	/// state and the provided input. Outputs `None` when there is no transition
 	/// for a given combination of the input and the state.
 	fn transition<'a>(
+		context: &mut Self::Context,
 		state: &Self::State,
 		input: Self::Input<'a>,
 	) -> Result<(Self::State, Option<Self::Output>), Self::Input<'a>>;
@@ -313,7 +317,8 @@ pub trait StateMachineImpl {
 /// state and transition and output function calls.
 #[derive(Debug, Clone)]
 pub struct StateMachine<T: StateMachineImpl> {
-	state: T::State,
+	pub state: T::State,
+	pub context: T::Context,
 }
 
 impl<T> StateMachine<T>
@@ -322,14 +327,12 @@ where
 {
 	/// Create a new instance of this wrapper which encapsulates the initial
 	/// state.
-	pub fn new() -> Self {
-		Self::from_state(T::INITIAL_STATE)
+	pub fn new(state: T::State, context: T::Context) -> Self {
+		Self { state, context }
 	}
 
-	/// Create a new instance of this wrapper which encapsulates the given
-	/// state.
-	pub fn from_state(state: T::State) -> Self {
-		Self { state }
+	pub fn with_context(context: T::Context) -> Self {
+		Self { state: T::INITIAL_STATE, context }
 	}
 
 	/// Consumes the provided input, gives an output and performs a state
@@ -341,7 +344,7 @@ where
 	pub fn dispatch<'a>(&mut self, input: T::Input<'a>) -> Result<Option<T::Output>, T::Input<'a>> {
 		T::before_transition(&self.state, &input);
 
-		let (mut state, output) = T::transition(&self.state, input)?;
+		let (mut state, output) = T::transition(&mut self.context, &self.state, input)?;
 		core::mem::swap(&mut self.state, &mut state);
 
 		T::after_transition(&state, &self.state, output.as_ref());
@@ -353,13 +356,30 @@ where
 	pub fn state(&self) -> &T::State {
 		&self.state
 	}
+
+	pub fn context(&self) -> &T::Context {
+		&self.context
+	}
+}
+
+impl<T> StateMachine<T>
+where
+	T: StateMachineImpl,
+	T::Context: Default,
+{
+	/// Create a new instance of this wrapper which encapsulates the given
+	/// state.
+	pub fn from_state(state: T::State) -> Self {
+		Self::new(state, T::Context::default())
+	}
 }
 
 impl<T> Default for StateMachine<T>
 where
 	T: StateMachineImpl,
+	T::Context: Default,
 {
 	fn default() -> Self {
-		Self::new()
+		Self::from_state(T::INITIAL_STATE)
 	}
 }

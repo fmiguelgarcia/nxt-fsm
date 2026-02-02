@@ -47,7 +47,7 @@ mod calculator_tests {
 		O: IntoIterator<Item = Option<COutput>>,
 		S: IntoIterator<Item = State>,
 	{
-		let mut machine = StateMachine::new();
+		let mut machine = StateMachine::default();
 		state_machine_proc(&mut machine, inputs, exp_outputs, exp_states).unwrap();
 	}
 }
@@ -78,7 +78,7 @@ mod string_processor_tests {
 
 	#[test]
 	fn test_string_processor_with_closures() {
-		let mut machine = string_processor::StateMachine::new();
+		let mut machine = string_processor::StateMachine::default();
 
 		// Test string length
 		let result = machine.dispatch(string_processor::Input::Process("hello".to_string())).unwrap();
@@ -129,7 +129,7 @@ mod validator_tests {
 	#[test_case( 99, 0..100 => ValidatorOutput::Valid)]
 	#[test_case( 100, 0..100 => ValidatorOutput::Invalid)]
 	fn test_closure_captures_complex_logic(value: i32, range: Range<i32>) -> ValidatorOutput {
-		let mut machine = validator::StateMachine::new();
+		let mut machine = validator::StateMachine::default();
 
 		machine.dispatch(validator::Input::CheckRange(value, range.start, range.end)).unwrap().unwrap()
 	}
