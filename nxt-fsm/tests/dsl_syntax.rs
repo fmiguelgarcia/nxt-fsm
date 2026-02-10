@@ -56,6 +56,25 @@ state_machine! {
 	B (E3(a: u32, b: String)) => A [ || Self::Output::O3(a, b) ]
 }
 
+// Ejemplo de máquina de estados con guards que usan contexto
+// Demuestra dos tipos de guards:
+// 1. Closure guard: `if |ctx: &mut Self::Context| <expr>` - Puede acceder y modificar el contexto
+// 2. Expression guard: `if <expr>` - Expresión normal sin acceso al contexto
+state_machine! {
+	#[derive(Debug)]
+	#[state_machine(context(u32))]
+	context_guard_test(Start)
+
+	use super::{COUNT, Ordering};
+
+	// Guard con closure: recibe contexto mutable y puede modificarlo
+	Start(Increment) if |ctx: &mut Self::Context| { *ctx += 1; *ctx > 2 } => Above else => Below,
+	// Guard con expresión: evaluación directa sin contexto
+	Above(Reset) if COUNT.load(Ordering::Relaxed) > 5 => Start else => Below,
+	// Transición simple sin guard
+	Below(Reset) => Start,
+}
+
 #[test]
 fn dsl_syntax() {
 	/*
@@ -68,3 +87,35 @@ fn dsl_syntax() {
 	println!("{:?}", machine.state());
 	*/
 }
+
+#[test]
+fn test_closure_guard_with_context() {
+	let ctx = 0u32;
+	let mut machine = context_guard_test::StateMachine::new(context_guard_test::Impl::INITIAL_STATE, ctx);
+
+	// Primera transición: ctx = 1, no pasa la guard (1 <= 2), va a Below
+	machine.dispatch(context_guard_test::Input::Increment).unwrap();
+	assert!(matches!(machine.state(), context_guard_test::State::Below));
+	assert_eq!(*machine.context(), 1);
+
+	// Reset to Start
+	machine.dispatch(context_guard_test::Input::Reset).unwrap();
+	assert!(matches!(machine.state(), context_guard_test::State::Start));
+
+	// Segunda transición: ctx = 2, no pasa la guard (2 <= 2), va a Below
+	machine.dispatch(context_guard_test::Input::Increment).unwrap();
+	assert!(matches!(machine.state(), context_guard_test::State::Below));
+	assert_eq!(*machine.context(), 2);
+
+	// Reset to Start
+	machine.dispatch(context_guard_test::Input::Reset).unwrap();
+	assert!(matches!(machine.state(), context_guard_test::State::Start));
+
+	// Tercera transición: ctx = 3, pasa la guard (3 > 2), va a Above
+	machine.dispatch(context_guard_test::Input::Increment).unwrap();
+	assert!(matches!(machine.state(), context_guard_test::State::Above));
+	assert_eq!(*machine.context(), 3);
+}
+
+// TODO: Implementar soporte completo para guards que devuelven Result<bool, Error>
+// Por ahora, las guards deben devolver bool directamente

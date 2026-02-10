@@ -1,14 +1,14 @@
 use nxt_fsm::{StateMachine, StateMachineImpl};
 use std::fmt::Debug;
 
-pub fn state_machine_proc<'i, I, O, S, SM, II, IO, IS>(
+pub fn state_machine_proc<'i, I, O, S, E, SM, II, IO, IS>(
 	machine: &mut StateMachine<SM>,
 	inputs: II,
 	exp_outputs: IO,
 	exp_states: IS,
-) -> Result<(), I>
+) -> Result<(), (E, I)>
 where
-	SM: StateMachineImpl<Input<'i> = I, Output = O, State = S>,
+	SM: StateMachineImpl<Input<'i> = I, Output = O, State = S, Error = E>,
 	S: Clone + PartialEq + Debug,
 	O: PartialEq + Debug,
 	II: IntoIterator<Item = I>,

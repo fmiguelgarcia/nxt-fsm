@@ -250,6 +250,7 @@ pub use aquamarine::aquamarine;
 /// use nxt_fsm::{StateMachineImpl, StateMachine};
 ///
 /// // Input type with a lifetime parameter
+/// #[derive(Debug)]
 /// enum ParserInput<'a> {
 ///     Data(&'a [u8]),
 ///     Flush,
@@ -267,20 +268,22 @@ pub use aquamarine::aquamarine;
 ///     type Input<'a> = ParserInput<'a>;
 ///     type State = ParserState;
 ///     type Output = ();
+///     type Error = ();
+///     type Context = ();
 ///     const INITIAL_STATE: Self::State = ParserState::Idle;
 ///
-///     fn transition<'a>(state: &Self::State, input: Self::Input<'a>) -> Result<(Self::State,
-///     Option<Self::Output>), Self::Input<'a>> {
+///     fn transition<'a>(context: &mut Self::Context, state: &Self::State, input: Self::Input<'a>)
+///         -> Result<(Self::State, Option<Self::Output>), (Self::Error, Self::Input<'a>)> {
 ///         match (state, input) {
 ///             (ParserState::Idle, ParserInput::Data(d)) if !d.is_empty() => Ok((ParserState::Processing, None)),
 ///             (ParserState::Processing, ParserInput::Flush) => Ok((ParserState::Idle, None)),
-///             (_, input_as_err) => Err(input_as_err),
+///             (_, input_as_err) => Err(((), input_as_err)),
 ///         }
 ///     }
 ///
 /// }
 ///
-/// let mut machine = StateMachine::<ParserImpl>::new();
+/// let mut machine = StateMachine::<ParserImpl>::new(ParserState::Idle, ());
 /// let local_data = vec![1, 2, 3];
 /// machine.dispatch(ParserInput::Data(&local_data)).unwrap();
 /// assert_eq!(machine.state(), &ParserState::Processing);
@@ -295,20 +298,24 @@ pub trait StateMachineImpl {
 	type Output;
 	/// The context type.
 	type Context;
+	/// The error type that can be returned by guards.
+	/// The default value is used when transition is imposible.
+	type Error: Default;
 
 	/// The initial state of the machine.
 	// allow since there is usually no interior mutability because states are enums
 	#[allow(clippy::declare_interior_mutable_const)]
 	const INITIAL_STATE: Self::State;
 	/// The transition fuction that outputs a new state based on the current
-	/// state and the provided input. Outputs `None` when there is no transition
-	/// for a given combination of the input and the state.
+	/// state and the provided input. Returns an error with the error type and input
+	/// when there is no transition for a given combination of the input and the state,
+	/// or when a guard fails.
 	#[allow(clippy::type_complexity)]
 	fn transition<'a>(
 		context: &mut Self::Context,
 		state: &Self::State,
 		input: Self::Input<'a>,
-	) -> Result<(Self::State, Option<Self::Output>), Self::Input<'a>>;
+	) -> Result<(Self::State, Option<Self::Output>), (Self::Error, Self::Input<'a>)>;
 
 	fn before_transition<'a>(_state: &Self::State, _input: &Self::Input<'a>) {}
 	fn after_transition(_pre_state: &Self::State, _state: &Self::State, _output: Option<&Self::Output>) {}
@@ -338,11 +345,12 @@ where
 
 	/// Consumes the provided input, gives an output and performs a state
 	/// transition. If a state transition with the current state and the
-	/// provided input is not allowed, returns an error.
+	/// provided input is not allowed, or if a guard fails, returns an error
+	/// containing the error value and the input.
 	///
 	/// The input can contain non-static references thanks to the GAT-based
 	/// `Input<'a>` type.
-	pub fn dispatch<'a>(&mut self, input: T::Input<'a>) -> Result<Option<T::Output>, T::Input<'a>> {
+	pub fn dispatch<'a>(&mut self, input: T::Input<'a>) -> Result<Option<T::Output>, (T::Error, T::Input<'a>)> {
 		T::before_transition(&self.state, &input);
 
 		let (mut state, output) = T::transition(&mut self.context, &self.state, input)?;

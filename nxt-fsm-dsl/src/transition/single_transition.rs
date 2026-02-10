@@ -6,8 +6,15 @@ use std::{collections::BTreeSet, iter::once};
 use syn::{
 	parse::{Parse, ParseStream, Result},
 	token::Bracket,
-	Expr, Ident, Token,
+	Expr, ExprClosure, Ident, Token,
 };
+
+pub enum Guard {
+	/// Simple expression: `if some_condition`
+	Expr(Expr),
+	/// Closure with context: `if |ctx: &mut Self::Context| some_condition`
+	Closure(ExprClosure),
+}
 
 pub struct ElseClause {
 	pub next_state: Ident,
@@ -15,7 +22,7 @@ pub struct ElseClause {
 }
 
 pub struct SingleTransition {
-	pub guard: Option<Expr>,
+	pub guard: Option<Guard>,
 	pub next_state: Ident,
 	pub output: Option<Output>,
 	pub else_clause: Option<ElseClause>,
@@ -33,19 +40,45 @@ impl SingleTransition {
 				let else_output = Output::to_tokens(&else_clause.output);
 				let else_next = &else_clause.next_state;
 
-				quote! {
-					(Self::State::#state, Self::Input::#event) => if ( #guard ) {
-						Ok((Self::State::#next_state, #output))
-					} else {
-						Ok((Self::State::#else_next, #else_output))
+				match guard {
+					Guard::Expr(expr) => {
+						quote! {
+							(Self::State::#state, Self::Input::#event) => if ( #expr ) {
+								Ok((Self::State::#next_state, #output))
+							} else {
+								Ok((Self::State::#else_next, #else_output))
+							},
+						}
+					},
+					Guard::Closure(closure) => {
+						quote! {
+							(Self::State::#state, Self::Input::#event) => if ( #closure )(context) {
+								Ok((Self::State::#next_state, #output))
+							} else {
+								Ok((Self::State::#else_next, #else_output))
+							},
+						}
 					},
 				}
 			},
 			(Some(guard), None) => {
 				// `if` guard
-				quote! {
-					(Self::State::#state, Self::Input::#event) if ( #guard ) => {
-						Ok((Self::State::#next_state, #output))
+				match guard {
+					Guard::Expr(expr) => {
+						quote! {
+							(Self::State::#state, Self::Input::#event) if ( #expr ) => {
+								Ok((Self::State::#next_state, #output))
+							},
+						}
+					},
+					Guard::Closure(closure) => {
+						// Para closures con else, usamos el patrón if-else
+						// Para closures sin else, usamos el patrón if con guard en el match
+						quote! {
+							(Self::State::#state, Self::Input::#event) if ( #closure )(context) => {
+								Ok((Self::State::#next_state, #output))
+							},
+						}
 					},
 				}
 			},
@@ -61,13 +94,21 @@ impl SingleTransition {
 
 impl Parse for SingleTransition {
 	fn parse(input: ParseStream) -> Result<Self> {
-		let guard = input
-			.peek(Token![if])
-			.then(|| {
-				let _ = input.parse::<Token![if]>()?;
-				input.parse::<Expr>()
-			})
-			.transpose()?;
+		let guard = if input.peek(Token![if]) {
+			let _ = input.parse::<Token![if]>()?;
+
+			// Intentar parsear como closure primero
+			if input.peek(Token![|]) {
+				let closure = input.parse::<ExprClosure>()?;
+				Some(Guard::Closure(closure))
+			} else {
+				// Si no es una closure, parsear como expresión normal
+				let expr = input.parse::<Expr>()?;
+				Some(Guard::Expr(expr))
+			}
+		} else {
+			None
+		};
 
 		let _ = input.parse::<Token![=>]>()?;
 		let next_state = input.parse::<Ident>()?;

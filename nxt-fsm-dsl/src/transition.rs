@@ -51,7 +51,16 @@ impl Transition {
 		let state = self.parent_state.as_ref().expect(TN_PARENT_STATE_EXP);
 		match &self.mode {
 			TransitionMode::Single(stn) => {
-				let guard = stn.guard.as_ref().map(sanitize_expr).unwrap_or_default();
+				use crate::transition::single_transition::Guard;
+
+				let guard = stn
+					.guard
+					.as_ref()
+					.map(|g| match g {
+						Guard::Expr(expr) => sanitize_expr(expr),
+						Guard::Closure(closure) => format!("{}", quote::quote!(#closure)),
+					})
+					.unwrap_or_default();
 				let next_state = &stn.next_state;
 
 				let mut lines = vec![];

@@ -138,6 +138,7 @@ impl ToTokens for StateMachineDef {
 		let (input_type, input_impl) = self.input_to_tokens();
 		let (state_type, state_impl) = self.state_to_tokens();
 		let (output_type, output_impl) = self.output_to_tokens();
+		let error_type = &self.sm_attrs.error_type;
 		let context_type = &self.sm_attrs.context_type;
 		let transition_cases = &self.states;
 
@@ -166,17 +167,18 @@ impl ToTokens for StateMachineDef {
 				type Input<'__input_lifetime> = #input_type;
 				type State = #state_type;
 				type Output = #output_type;
+				type Error = #error_type;
 				type Context = #context_type;
 
 				const INITIAL_STATE: Self::State = Self::State::#initial_state;
 
 				fn transition<'__input_lifetime>(
 					context: &mut Self::Context,
-					state: &Self::State, 
-					input: Self::Input<'__input_lifetime>) -> Result<(Self::State, Option<Self::Output>), Self::Input<'__input_lifetime>> {
+					state: &Self::State,
+					input: Self::Input<'__input_lifetime>) -> Result<(Self::State, Option<Self::Output>), (Self::Error, Self::Input<'__input_lifetime>)> {
 					match (state, input) {
 						#(#transition_cases)*
-						(_, input_as_err) => Err(input_as_err), 
+						(_, input_as_err) => Err((Default::default(), input_as_err)),
 					}
 				}
 
