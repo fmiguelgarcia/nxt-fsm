@@ -30,61 +30,58 @@ pub struct SingleTransition {
 
 impl SingleTransition {
 	pub fn to_token_stream(&self, state: &Ident, event: &Event) -> TokenStream {
-		let event = event.transition_case();
+		let event_pattern = event.transition_case();
 		let output = Output::to_tokens(&self.output);
 		let next_state = &self.next_state;
 
 		match (&self.guard, &self.else_clause) {
 			(Some(guard), Some(else_clause)) => {
-				// `if-else` guard
+				// `if-else` guard - usa IntoGuardResult para soportar bool y Result<bool, E>
 				let else_output = Output::to_tokens(&else_clause.output);
 				let else_next = &else_clause.next_state;
 
-				match guard {
-					Guard::Expr(expr) => {
-						quote! {
-							(Self::State::#state, Self::Input::#event) => if ( #expr ) {
-								Ok((Self::State::#next_state, #output))
-							} else {
-								Ok((Self::State::#else_next, #else_output))
-							},
-						}
-					},
-					Guard::Closure(closure) => {
-						quote! {
-							(Self::State::#state, Self::Input::#event) => if ( #closure )(context) {
-								Ok((Self::State::#next_state, #output))
-							} else {
-								Ok((Self::State::#else_next, #else_output))
-							},
+				let guard_expr = match guard {
+					Guard::Expr(expr) => quote! { #expr },
+					Guard::Closure(closure) => quote! { ( #closure )(context) },
+				};
+
+				// Si hay campos, necesitamos reconstruir el input en caso de error
+				let (pattern, input_reconstruction) = if event.fields.is_empty() {
+					// Sin campos: capturar el input completo con @
+					(quote! { __input @ Self::Input::#event_pattern }, quote! { __input })
+				} else {
+					// Con campos: extraer y luego reconstruir
+					let event_name = &event.name;
+					let field_names = crate::event::event_fields_to_args(&event.fields);
+					(quote! { Self::Input::#event_pattern }, quote! { Self::Input::#event_name(#(#field_names),*) })
+				};
+
+				quote! {
+					(Self::State::#state, #pattern) => {
+						match ( #guard_expr ).into_guard_result() {
+							Ok(true) => Ok((Self::State::#next_state, #output)),
+							Ok(false) => Ok((Self::State::#else_next, #else_output)),
+							Err(__guard_error) => Err((__guard_error, #input_reconstruction)),
 						}
 					},
 				}
 			},
 			(Some(guard), None) => {
 				// `if` guard
-				match guard {
-					Guard::Expr(expr) => {
-						quote! {
-							(Self::State::#state, Self::Input::#event) if ( #expr ) => {
-								Ok((Self::State::#next_state, #output))
-							},
-						}
-					},
-					Guard::Closure(closure) => {
-						// Para closures con else, usamos el patrón if-else
-						// Para closures sin else, usamos el patrón if con guard en el match
-						quote! {
-							(Self::State::#state, Self::Input::#event) if ( #closure )(context) => {
-								Ok((Self::State::#next_state, #output))
-							},
-						}
+				let guard_expr = match guard {
+					Guard::Expr(expr) => quote! { #expr },
+					Guard::Closure(closure) => quote! { ( #closure )(context) },
+				};
+
+				quote! {
+					(Self::State::#state, Self::Input::#event_pattern) if ( #guard_expr ).into_guard_result()? => {
+						Ok((Self::State::#next_state, #output))
 					},
 				}
 			},
 			(None, None) => {
 				quote! {
-					(Self::State::#state, Self::Input::#event) => Ok((Self::State::#next_state, #output)),
+					(Self::State::#state, Self::Input::#event_pattern) => Ok((Self::State::#next_state, #output)),
 				}
 			},
 			_ => unreachable!("`else` guard witout `if`"),

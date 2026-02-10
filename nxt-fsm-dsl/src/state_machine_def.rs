@@ -176,6 +176,9 @@ impl ToTokens for StateMachineDef {
 					context: &mut Self::Context,
 					state: &Self::State,
 					input: Self::Input<'__input_lifetime>) -> Result<(Self::State, Option<Self::Output>), (Self::Error, Self::Input<'__input_lifetime>)> {
+
+					use ::nxt_fsm::IntoGuardResult;
+
 					match (state, input) {
 						#(#transition_cases)*
 						(_, input_as_err) => Err((Default::default(), input_as_err)),

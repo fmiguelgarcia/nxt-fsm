@@ -117,5 +117,93 @@ fn test_closure_guard_with_context() {
 	assert_eq!(*machine.context(), 3);
 }
 
-// TODO: Implementar soporte completo para guards que devuelven Result<bool, Error>
-// Por ahora, las guards deben devolver bool directamente
+// Test para verificar guards que devuelven Result<bool, Error>
+#[derive(Debug, PartialEq, Default)]
+pub enum ValidationError {
+	#[default]
+	None,
+	InvalidValue,
+	OutOfRange,
+}
+
+state_machine! {
+	#[derive(Debug)]
+	#[state_machine(context(()), error(crate::ValidationError))]
+	result_guard_test(Init)
+
+	use super::ValidationError;
+
+	// Guard con closure que devuelve Result - DEBE tener else para soportar Result
+	// Si devuelve Err, se propaga el error inmediatamente
+	Init(Check(value: i32)) if |_ctx: &mut Self::Context| {
+		if value < 0 { Err(Self::Error::InvalidValue) }
+		else if value > 100 { Err(Self::Error::OutOfRange) }
+		else { Ok(value > 50) }
+	} => High else => Low,
+	High(Reset) => Init,
+	Low(Reset) => Init,
+	// También podemos tener guards sin else que solo devuelven bool
+	Low(Check(value: i32)) if value == 42 => High,
+}
+
+#[test]
+fn test_result_guard() {
+	let mut machine = result_guard_test::StateMachine::default();
+
+	// Valor válido alto (> 50) - va a High
+	machine.dispatch(result_guard_test::Input::Check(75)).unwrap();
+	assert!(matches!(machine.state(), result_guard_test::State::High));
+
+	// Reset
+	machine.dispatch(result_guard_test::Input::Reset).unwrap();
+	assert!(matches!(machine.state(), result_guard_test::State::Init));
+
+	// Valor válido bajo (<= 50) - va a Low
+	machine.dispatch(result_guard_test::Input::Check(25)).unwrap();
+	assert!(matches!(machine.state(), result_guard_test::State::Low));
+
+	// Reset
+	machine.dispatch(result_guard_test::Input::Reset).unwrap();
+	assert!(matches!(machine.state(), result_guard_test::State::Init));
+
+	// Valor inválido (< 0) - devuelve error
+	let res = machine.dispatch(result_guard_test::Input::Check(-5));
+	assert!(matches!(res, Err((ValidationError::InvalidValue, _))));
+	assert!(matches!(machine.state(), result_guard_test::State::Init)); // Estado no cambia
+
+	// Valor fuera de rango (> 100) - devuelve error
+	let res = machine.dispatch(result_guard_test::Input::Check(150));
+	assert!(matches!(res, Err((ValidationError::OutOfRange, _))));
+	assert!(matches!(machine.state(), result_guard_test::State::Init)); // Estado no cambia
+}
+
+// Test para verificar que guards normales (bool) siguen funcionando
+state_machine! {
+	#[derive(Debug)]
+	bool_guard_test(Start)
+
+	use super::COUNT;
+	use super::Ordering;
+
+	// Guard normal que devuelve bool
+	Start(Go(value: u32)) if value > 10 => High else => Low,
+	High(Reset) => Start,
+	Low(Reset) => Start,
+}
+
+#[test]
+fn test_bool_guard_still_works() {
+	let mut machine = bool_guard_test::StateMachine::default();
+
+	// Valor alto (> 10) - va a High
+	machine.dispatch(bool_guard_test::Input::Go(20)).unwrap();
+	assert!(matches!(machine.state(), bool_guard_test::State::High));
+
+	// Reset
+	machine.dispatch(bool_guard_test::Input::Reset).unwrap();
+	assert!(matches!(machine.state(), bool_guard_test::State::Start));
+
+	// Valor bajo (<= 10) - va a Low
+	machine.dispatch(bool_guard_test::Input::Go(5)).unwrap();
+	assert!(matches!(machine.state(), bool_guard_test::State::Low));
+}
