@@ -235,41 +235,8 @@ pub use nxt_fsm_dsl::state_machine;
 #[cfg(feature = "diagram")]
 pub use aquamarine::aquamarine;
 
-/// A trait to unify guard expressions that return either `bool` or `Result<bool, E>`.
-/// This allows state machine guards to seamlessly handle both simple boolean conditions
-/// and fallible validations that may produce errors.
-///
-/// # Examples
-///
-/// ```rust
-/// use nxt_fsm::IntoGuardResult;
-///
-/// // Simple boolean
-/// let simple: bool = true;
-/// assert_eq!(simple.into_guard_result(), Ok::<bool, ()>(true));
-///
-/// // Result<bool, E>
-/// let fallible: Result<bool, String> = Ok(false);
-/// assert_eq!(fallible.into_guard_result(), Ok(false));
-///
-/// let error: Result<bool, String> = Err("validation failed".to_string());
-/// assert_eq!(error.into_guard_result(), Err("validation failed".to_string()));
-/// ```
-pub trait IntoGuardResult<E> {
-	fn into_guard_result(self) -> Result<bool, E>;
-}
-
-impl<E> IntoGuardResult<E> for bool {
-	fn into_guard_result(self) -> Result<bool, E> {
-		Ok(self)
-	}
-}
-
-impl<T: Into<bool>, E> IntoGuardResult<E> for Result<T, E> {
-	fn into_guard_result(self) -> Result<bool, E> {
-		self.map(Into::into)
-	}
-}
+mod error;
+pub use error::IntoGuardResult;
 
 /// This trait is designed to describe any possible deterministic finite state
 /// machine/transducer. This is just a formal definition that may be
@@ -309,11 +276,11 @@ impl<T: Into<bool>, E> IntoGuardResult<E> for Result<T, E> {
 ///     const INITIAL_STATE: Self::State = ParserState::Idle;
 ///
 ///     fn transition<'a>(context: &mut Self::Context, state: &Self::State, input: Self::Input<'a>)
-///         -> Result<(Self::State, Option<Self::Output>), (Self::Error, Self::Input<'a>)> {
+///         -> Result<(Self::State, Option<Self::Output>), Self::Error> {
 ///         match (state, input) {
 ///             (ParserState::Idle, ParserInput::Data(d)) if !d.is_empty() => Ok((ParserState::Processing, None)),
 ///             (ParserState::Processing, ParserInput::Flush) => Ok((ParserState::Idle, None)),
-///             (_, input_as_err) => Err(((), input_as_err)),
+///             (state_err, input_err) => Self::Error::from((state_err, input_err)),
 ///         }
 ///     }
 ///
@@ -336,7 +303,7 @@ pub trait StateMachineImpl {
 	type Context;
 	/// The error type that can be returned by guards.
 	/// The default value is used when transition is imposible.
-	type Error: Default;
+	type Error<'a>: From<Self::Input<'a>>;
 
 	/// The initial state of the machine.
 	// allow since there is usually no interior mutability because states are enums
@@ -351,7 +318,7 @@ pub trait StateMachineImpl {
 		context: &mut Self::Context,
 		state: &Self::State,
 		input: Self::Input<'a>,
-	) -> Result<(Self::State, Option<Self::Output>), (Self::Error, Self::Input<'a>)>;
+	) -> Result<(Self::State, Option<Self::Output>), Self::Error<'a>>;
 
 	fn before_transition<'a>(_state: &Self::State, _input: &Self::Input<'a>) {}
 	fn after_transition(_pre_state: &Self::State, _state: &Self::State, _output: Option<&Self::Output>) {}
@@ -386,7 +353,7 @@ where
 	///
 	/// The input can contain non-static references thanks to the GAT-based
 	/// `Input<'a>` type.
-	pub fn dispatch<'a>(&mut self, input: T::Input<'a>) -> Result<Option<T::Output>, (T::Error, T::Input<'a>)> {
+	pub fn dispatch<'a>(&mut self, input: T::Input<'a>) -> Result<Option<T::Output>, T::Error<'a>> {
 		T::before_transition(&self.state, &input);
 
 		let (mut state, output) = T::transition(&mut self.context, &self.state, input)?;

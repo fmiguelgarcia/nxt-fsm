@@ -57,7 +57,7 @@ use test_case::test_case;
 #[test_case( [Input::from("admin"), Close] => Ok(Closed) )]
 /*
  */
-fn test_door<I, T>(user_inputs: I) -> Result<State, ((), Input)>
+fn test_door<I, T>(user_inputs: I) -> Result<State, Input>
 where
 	I: IntoIterator<Item = T>,
 	T: Into<Input>,

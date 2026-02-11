@@ -6,7 +6,7 @@ pub struct SMDefAttr {
 	pub input_type: Option<Path>,
 	pub state_type: Option<Path>,
 	pub output_type: Option<Path>,
-	pub error_type: Type,
+	pub error_type: Option<Type>,
 	pub context_type: Type,
 	pub before_transition: Option<Expr>,
 	pub after_transition: Option<Expr>,
@@ -64,7 +64,7 @@ impl SMDefAttr {
 				self.output_type = Some(content.parse::<Path>()?);
 			},
 			"error" => {
-				self.error_type = content.parse::<Type>()?;
+				self.error_type = Some(content.parse::<Type>()?);
 			},
 			"context" => {
 				self.context_type = content.parse::<Type>()?;
@@ -85,13 +85,14 @@ impl SMDefAttr {
 impl Default for SMDefAttr {
 	fn default() -> Self {
 		let context_type: Type = syn::parse_str("()").expect("unit type");
-		let error_type: Type = syn::parse_str("()").expect("unit type");
+		// let error_type: Type =
+		// 	syn::parse_str("::nxt-fsm::StateMachineErr<Self::State, Self::Input>").expect("Default error type");
 
 		Self {
 			input_type: None,
 			state_type: None,
 			output_type: None,
-			error_type,
+			error_type: None,
 			context_type,
 			before_transition: None,
 			after_transition: None,

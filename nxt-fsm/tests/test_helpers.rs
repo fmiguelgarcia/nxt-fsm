@@ -6,9 +6,9 @@ pub fn state_machine_proc<'i, I, O, S, E, SM, II, IO, IS>(
 	inputs: II,
 	exp_outputs: IO,
 	exp_states: IS,
-) -> Result<(), (E, I)>
+) -> Result<(), E>
 where
-	SM: StateMachineImpl<Input<'i> = I, Output = O, State = S, Error = E>,
+	SM: StateMachineImpl<Input<'i> = I, Output = O, State = S, Error<'i> = E>,
 	S: Clone + PartialEq + Debug,
 	O: PartialEq + Debug,
 	II: IntoIterator<Item = I>,

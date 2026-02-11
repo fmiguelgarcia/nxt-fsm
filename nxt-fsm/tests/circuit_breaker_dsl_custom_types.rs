@@ -14,6 +14,7 @@ pub enum Input {
 	TimerTriggered,
 }
 
+#[derive(Clone, Copy)]
 pub enum State {
 	Closed,
 	HalfOpen,
@@ -65,7 +66,7 @@ fn circuit_breaker_dsl_custom_types() {
 		std::thread::sleep(Duration::from_millis(100));
 		let mut lock = machine_try.lock().unwrap();
 		let res = lock.dispatch(Input::Successful);
-		assert!(matches!(res, Err(((), Input::Successful))));
+		assert!(matches!(res, Err(Input::Successful)));
 		assert!(matches!(lock.state(), &State::Open));
 	});
 

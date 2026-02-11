@@ -46,22 +46,14 @@ impl SingleTransition {
 				};
 
 				// Si hay campos, necesitamos reconstruir el input en caso de error
-				let (pattern, input_reconstruction) = if event.fields.is_empty() {
-					// Sin campos: capturar el input completo con @
-					(quote! { __input @ Self::Input::#event_pattern }, quote! { __input })
-				} else {
-					// Con campos: extraer y luego reconstruir
-					let event_name = &event.name;
-					let field_names = crate::event::event_fields_to_args(&event.fields);
-					(quote! { Self::Input::#event_pattern }, quote! { Self::Input::#event_name(#(#field_names),*) })
-				};
+				let pattern = quote! { Self::Input::#event_pattern };
 
 				quote! {
 					(Self::State::#state, #pattern) => {
 						match ( #guard_expr ).into_guard_result() {
 							Ok(true) => Ok((Self::State::#next_state, #output)),
 							Ok(false) => Ok((Self::State::#else_next, #else_output)),
-							Err(__guard_error) => Err((__guard_error, #input_reconstruction)),
+							Err(e) => Err(e)
 						}
 					},
 				}
@@ -74,7 +66,7 @@ impl SingleTransition {
 				};
 
 				quote! {
-					(Self::State::#state, Self::Input::#event_pattern) if ( #guard_expr ).into_guard_result()? => {
+					(Self::State::#state, Self::Input::#event_pattern) if ( #guard_expr ) => {
 						Ok((Self::State::#next_state, #output))
 					},
 				}

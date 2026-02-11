@@ -31,7 +31,7 @@ impl StateMachineImpl for CircuitBreakerMachine {
 	type Input<'a> = CircuitBreakerInput;
 	type State = CircuitBreakerState;
 	type Output = CircuitBreakerOutputSetTimer;
-	type Error = ();
+	type Error<'a> = Self::Input<'a>;
 	type Context = ();
 	const INITIAL_STATE: Self::State = CircuitBreakerState::Closed;
 
@@ -39,7 +39,7 @@ impl StateMachineImpl for CircuitBreakerMachine {
 		_context: &mut Self::Context,
 		state: &Self::State,
 		input: Self::Input<'a>,
-	) -> Result<(Self::State, Option<Self::Output>), (Self::Error, Self::Input<'a>)> {
+	) -> Result<(Self::State, Option<Self::Output>), Self::Error<'a>> {
 		match (state, input) {
 			(CircuitBreakerState::Closed, CircuitBreakerInput::Unsuccessful) => {
 				let next_state = CircuitBreakerState::Open;
@@ -54,7 +54,7 @@ impl StateMachineImpl for CircuitBreakerMachine {
 				let output = Some(CircuitBreakerOutputSetTimer);
 				Ok((next_state, output))
 			},
-			(_, input_as_err) => Err(((), input_as_err)),
+			(__state, __input) => Err(Self::Error::from(__input)),
 		}
 	}
 }
@@ -88,7 +88,7 @@ fn circuit_breaker() {
 		std::thread::sleep(Duration::from_millis(100));
 		let mut lock = machine_try.lock().unwrap();
 		let res = lock.dispatch(CircuitBreakerInput::Successful);
-		assert!(matches!(res, Err(((), CircuitBreakerInput::Successful))));
+		assert!(matches!(res, Err(CircuitBreakerInput::Successful)));
 		assert_eq!(lock.state(), &CircuitBreakerState::Open);
 	});
 

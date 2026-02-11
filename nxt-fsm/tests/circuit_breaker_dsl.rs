@@ -50,7 +50,7 @@ fn circit_breaker_dsl() {
 		std::thread::sleep(Duration::from_millis(100));
 		let mut lock = machine_try.lock().unwrap();
 		let res = lock.dispatch(Input::Successful);
-		assert!(matches!(res, Err(((), Input::Successful))));
+		assert!(matches!(res, Err(Input::Successful)));
 		assert!(matches!(lock.state(), &State::Open));
 	});
 

@@ -92,6 +92,15 @@ impl StateMachineDef {
 			},
 		}
 	}
+
+	fn error_to_tokens(&self) -> TokenStream {
+		match &self.sm_attrs.error_type {
+			Some(err_type) => err_type.into_token_stream(),
+			None => {
+				quote! { Self::Input<'__lifetime> }
+			},
+		}
+	}
 }
 
 impl Parse for StateMachineDef {
@@ -138,7 +147,7 @@ impl ToTokens for StateMachineDef {
 		let (input_type, input_impl) = self.input_to_tokens();
 		let (state_type, state_impl) = self.state_to_tokens();
 		let (output_type, output_impl) = self.output_to_tokens();
-		let error_type = &self.sm_attrs.error_type;
+		let error_type = self.error_to_tokens();
 		let context_type = &self.sm_attrs.context_type;
 		let transition_cases = &self.states;
 
@@ -164,24 +173,24 @@ impl ToTokens for StateMachineDef {
 
 
 			impl ::nxt_fsm::StateMachineImpl for Impl {
-				type Input<'__input_lifetime> = #input_type;
+				type Input<'__lifetime> = #input_type;
 				type State = #state_type;
 				type Output = #output_type;
-				type Error = #error_type;
+				type Error<'__lifetime> = #error_type;
 				type Context = #context_type;
 
 				const INITIAL_STATE: Self::State = Self::State::#initial_state;
 
-				fn transition<'__input_lifetime>(
+				fn transition<'__lifetime>(
 					context: &mut Self::Context,
 					state: &Self::State,
-					input: Self::Input<'__input_lifetime>) -> Result<(Self::State, Option<Self::Output>), (Self::Error, Self::Input<'__input_lifetime>)> {
+					input: Self::Input<'__lifetime>) -> Result<(Self::State, Option<Self::Output>), Self::Error<'__lifetime>> {
 
 					use ::nxt_fsm::IntoGuardResult;
 
 					match (state, input) {
 						#(#transition_cases)*
-						(_, input_as_err) => Err((Default::default(), input_as_err)),
+						(__state_as_err, __input_as_err) => Err(Self::Error::from(__input_as_err)),
 					}
 				}
 
@@ -189,7 +198,8 @@ impl ToTokens for StateMachineDef {
 				#after_transition_impl
 			}
 		  }
-		}.to_tokens(tokens);
+		}
+		.to_tokens(tokens);
 	}
 }
 

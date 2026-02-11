@@ -13,6 +13,7 @@ state_machine! {
 
 state_machine! {
 	#[allow(unused)]
+	#[derive(Clone)]
 	complex_machine(Start)
 
 	Start => {
