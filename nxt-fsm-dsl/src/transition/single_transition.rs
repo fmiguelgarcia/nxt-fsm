@@ -59,14 +59,14 @@ impl SingleTransition {
 				}
 			},
 			(Some(guard), None) => {
-				// `if` guard
+				// `if` guard sin else - soporta bool y Result<bool, E>
 				let guard_expr = match guard {
 					Guard::Expr(expr) => quote! { #expr },
 					Guard::Closure(closure) => quote! { ( #closure )(context) },
 				};
 
 				quote! {
-					(Self::State::#state, Self::Input::#event_pattern) if ( #guard_expr ) => {
+					(Self::State::#state, Self::Input::#event_pattern) if ( #guard_expr ).into_guard_result()? => {
 						Ok((Self::State::#next_state, #output))
 					},
 				}
